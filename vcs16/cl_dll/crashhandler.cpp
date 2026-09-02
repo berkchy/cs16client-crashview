@@ -148,8 +148,8 @@ static void resolveAddress(char *buf, size_t bufSize, void *addr) {
 	safeStrcat(buf, hex, bufSize);
 }
 
-static void dumpMaps(int fd, unsigned long addr) {
-	char header[] = "\n--- Memory Maps (fault addr lookup) ---\n";
+static void dumpMaps(int fd, unsigned long addr, unsigned long addr30, unsigned long addr16) {
+	char header[] = "\n--- Memory Maps ---\n";
 	write(fd, header, sizeof(header) - 1);
 
 	char line[512];
@@ -159,12 +159,16 @@ static void dumpMaps(int fd, unsigned long addr) {
 		unsigned long start = 0, end = 0;
 		char perms[8] = {0};
 		sscanf(line, "%lx-%lx %7s", &start, &end, perms);
-		if (addr >= start && addr < end) {
-			char mark[] = "    <<< FAULT/P\n";
+		if (perms[2] == 'x') {
 			size_t len = strlen(line);
 			if (len > 0 && line[len - 1] == '\n') line[len - 1] = '\0';
 			write(fd, line, strlen(line));
-			write(fd, mark, sizeof(mark) - 1);
+			if (addr >= start && addr < end)
+				write(fd, "    <<< PC/FAULT (SIGILL here)\n", 31);
+			if (addr30 >= start && addr30 < end)
+				write(fd, "    <<< LR (x30 caller)\n", 23);
+			if (addr16 >= start && addr16 < end)
+				write(fd, "    <<< x16\n", 12);
 			write(fd, "\n", 1);
 		}
 	}
@@ -318,7 +322,15 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 #endif
 	}
 
-	dumpMaps(fd, (unsigned long)info->si_addr);
+	unsigned long x30v = 0, x16v = 0;
+#if defined(__aarch64__)
+	if (ucontext) {
+		mcontext_t *mctx = &((ucontext_t *)ucontext)->uc_mcontext;
+		x30v = mctx->regs[30];
+		x16v = mctx->regs[16];
+	}
+#endif
+	dumpMaps(fd, (unsigned long)info->si_addr, x30v, x16v);
 
 	char footer[] = "=== END CRASH ===\n";
 	write(fd, footer, sizeof(footer) - 1);
