@@ -108,6 +108,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
 
       - name: Bundle debug signing keystore into app assets
         shell: bash
