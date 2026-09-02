@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unwind.h>
@@ -29,6 +30,7 @@ static _Unwind_Reason_Code unwindCallback(struct _Unwind_Context *context, void 
 			*state->current++ = ip;
 			state->depth++;
 		}
+		if (state->depth > 256) return _URC_END_OF_STACK;
 	}
 	return _URC_NO_REASON;
 }
@@ -144,6 +146,29 @@ static void resolveAddress(char *buf, size_t bufSize, void *addr) {
 	char hex[20];
 	safeIntToHex(hex, (unsigned long)addr, sizeof(hex));
 	safeStrcat(buf, hex, bufSize);
+}
+
+static void dumpMaps(int fd, unsigned long addr) {
+	char header[] = "\n--- Memory Maps (fault addr lookup) ---\n";
+	write(fd, header, sizeof(header) - 1);
+
+	char line[512];
+	FILE *f = fopen("/proc/self/maps", "r");
+	if (!f) return;
+	while (fgets(line, sizeof(line), f)) {
+		unsigned long start = 0, end = 0;
+		char perms[8] = {0};
+		sscanf(line, "%lx-%lx %7s", &start, &end, perms);
+		if (addr >= start && addr < end) {
+			char mark[] = "    <<< FAULT/P\n";
+			size_t len = strlen(line);
+			if (len > 0 && line[len - 1] == '\n') line[len - 1] = '\0';
+			write(fd, line, strlen(line));
+			write(fd, mark, sizeof(mark) - 1);
+			write(fd, "\n", 1);
+		}
+	}
+	fclose(f);
 }
 
 static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
@@ -292,6 +317,8 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 		}
 #endif
 	}
+
+	dumpMaps(fd, (unsigned long)info->si_addr);
 
 	char footer[] = "=== END CRASH ===\n";
 	write(fd, footer, sizeof(footer) - 1);
