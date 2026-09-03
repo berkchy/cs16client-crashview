@@ -1,0 +1,45 @@
+diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
+index ca0ff23..17a781f 100644
+--- a/modules/cstrike/csx/meta_api.cpp
++++ b/modules/cstrike/csx/meta_api.cpp
+@@ -233,10 +233,12 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
+ 	}
+ 
+ 	const char* name = INFOKEY_VALUE(infobuffer,"name");
+-	const char* oldname = STRING(pEntity->v.netname);
++	const char* oldname = NULL;
++	if (pEntity && pEntity->v.netname)
++		oldname = STRING(pEntity->v.netname);
+ 
+ 	if ( pPlayer->rank ){
+-		if ( strcmp(oldname,name) != 0 ) {
++		if ( oldname && name && strcmp(oldname,name) != 0 ) {
+ 			if ((int)csstats_rank->value == 0)
+ 				pPlayer->rank = g_rank.findEntryInRank( name, name );
+ 			else
+diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
+index 97f15a0..7169afc 100644
+--- a/modules/cstrike/csx/CMisc.cpp
++++ b/modules/cstrike/csx/CMisc.cpp
+@@ -94,7 +94,7 @@ void CPlayer::PutInServer(){
+ 		return;
+ 
+ 	restartStats();
+-	const char* name = STRING(pEdict->v.netname);
++	const char* name = (pEdict && pEdict->v.netname) ? STRING(pEdict->v.netname) : "";
+ 	const char* unique = name;
+ 	bool isip = false;
+ 	switch((int)csstats_rank->value) {
+diff --git a/modules/cstrike/csx/usermsg.cpp b/modules/cstrike/csx/usermsg.cpp
+index 5cb463b..d42ee43 100644
+--- a/modules/cstrike/csx/usermsg.cpp
++++ b/modules/cstrike/csx/usermsg.cpp
+@@ -136,7 +136,7 @@ void Client_Damage(void* mValue){
+ 	}
+     if( g_grenades.find(enemy , &pAttacker , &weapon ) )
+         pAttacker->saveHit( mPlayer , weapon , damage, aim );
+-	else if ( strcmp("grenade",STRING(enemy->v.classname))==0 ) // ? more checks ?
++	else if ( enemy && enemy->v.classname && strcmp("grenade",STRING(enemy->v.classname))==0 ) // ? more checks ?
+ 			weapon = CSW_C4;
+   }
+ }
