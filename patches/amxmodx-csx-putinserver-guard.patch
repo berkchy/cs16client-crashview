@@ -1,0 +1,71 @@
+diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
+--- a/modules/cstrike/csx/CMisc.cpp
++++ b/modules/cstrike/csx/CMisc.cpp
+@@ -106,6 +106,10 @@
+ 		unique = ip;
+ 		isip = true;
+ 	}
++	if ( !name )
++		name = "";
++	if ( !unique )
++		unique = name;
+ 	rank = g_rank.findEntryInRank( unique , name , isip);
+ }
+ 
+diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
+--- a/modules/cstrike/csx/CRank.cpp
++++ b/modules/cstrike/csx/CRank.cpp
+@@ -64,6 +64,8 @@
+ }
+ 
+ void RankSystem::RankStats::setName( const char* nn  )	{
++	if ( !nn )
++		nn = "";
+ 	delete[] name;
+ 	namelen = strlen(nn) + 1;
+ 	name = new char[namelen];
+@@ -74,6 +76,8 @@
+ }
+ 
+ void RankSystem::RankStats::setUnique( const char* nn  )	{
++	if ( !nn )
++		nn = "";
+ 	delete[] unique;
+ 	uniquelen = strlen(nn) + 1;
+ 	unique = new char[uniquelen];
+diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
+--- a/modules/cstrike/csx/meta_api.cpp
++++ b/modules/cstrike/csx/meta_api.cpp
+@@ -219,7 +219,23 @@
+ 
+ void ClientPutInServer_Post( edict_t *pEntity ) 
+ {
+-	GET_PLAYER_POINTER(pEntity)->PutInServer();
++	if ( pEntity )
++	{
++		int idx = ENTINDEX(pEntity);
++
++		// Hook chains (e.g. yapb) may forward edicts that are not fully
++		// spawned player edicts yet. Indexing players[] with a bad index
++		// yields a wild CPlayer whose strings crash strlen() in rank code.
++		if ( idx >= 1 && idx <= gpGlobals->maxClients )
++		{
++			CPlayer *pPlayer = GET_PLAYER_POINTER_I(idx);
++
++			// Use the fresh edict from the engine, not the one stored at
++			// ServerActivate time (it may be stale for late-joining bots).
++			pPlayer->pEdict = pEntity;
++			pPlayer->PutInServer();
++		}
++	}
+ 
+ 	RETURN_META(MRES_IGNORED);
+ }
+@@ -246,6 +262,7 @@
+ 		}
+ 	}
+ 	else if ( pPlayer->IsBot() ) {
++		pPlayer->pEdict = pEntity;
+ 		pPlayer->Connect( "127.0.0.1" );
+ 		pPlayer->PutInServer();
+ 	}
