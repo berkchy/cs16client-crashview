@@ -43,12 +43,12 @@
 				"mac"       "@_Z10CanBuyThisP11CBasePlayeri"
 			}
 
-			"AddAccount"    // void CBasePlayer::AddAccount(int amount, bool bTrackChange)
+			"AddAccount"    // void CBasePlayer::AddAccount(int amount, RewardType type, bool bTrackChange)
 			{
 				"library"   "server"
 				"windows"   "\x55\x8B\xEC\x8B\x45\x2A\x56\x8B\xF1\x01\x86"
-				"linux"     "@_ZN11CBasePlayer10AddAccountEib"
-				"mac"       "@_ZN11CBasePlayer10AddAccountEib"
+				"linux"     "@_ZN11CBasePlayer10AddAccountEi10RewardTypeb"
+				"mac"       "@_ZN11CBasePlayer10AddAccountEi10RewardTypeb"
 			}
 
 			"GiveNamedItem" // void CBasePlayer::GiveNamedItem(const char *pszName)
@@ -75,12 +75,12 @@
 				"mac"       "@_ZN11CBasePlayer10GiveShieldEb"
 			}
 
-			"CreateNamedEntity" // edict_t* CREATE_NAMED_ENTITY(int classname)
+			"CreateNamedEntity" // edict_t* CREATE_NAMED_ENTITY(QString classname)
 			{
 				"library"   "server"
 				"windows"   "\x55\x8B\xEC\x56\xFF\x75\x2A\xFF\x15"
-				"linux"     "@_Z19CREATE_NAMED_ENTITYj"
-				"mac"       "@_Z19CREATE_NAMED_ENTITYj"
+				"linux"     "@_Z19CREATE_NAMED_ENTITY7QString"
+				"mac"       "@_Z19CREATE_NAMED_ENTITY7QString"
 			}
 
 			"FindEntityByString" // CBaseEntity *UTIL_FindEntityByString(CBaseEntity *pStartEntity, const char *szKeyword, const char *szValue)
@@ -127,8 +127,8 @@
 			{
 				"library"   "server"
 				"windows"   "\x55\x8B\xEC\x56\x57\x8B\x7D\x2A\x8B\xCF\x6A"
-				"linux"     "@_Z10BuyGunAmmoR11CBasePlayerR15CBasePlayerItemb"
-				"mac"       "@_Z10BuyGunAmmoR11CBasePlayerR15CBasePlayerItemb"
+				"linux"     "@_Z10BuyGunAmmoP11CBasePlayerP15CBasePlayerItemb"
+				"mac"       "@_Z10BuyGunAmmoP11CBasePlayerP15CBasePlayerItemb"
 			}
 
 			"UseBotArgs"    // bool UseBotArgs
@@ -387,74 +387,6 @@
 			{
 				"windows" "6BF63A24" // cstrike/dlls/mp.dll
 				"windows" "BD938A62" // czero/dlls/mp.dll
-			}
-		}
-
-		"Signatures"
-		{
-			"CanPlayerBuy"
-			{
-				"windows"   "\x51\x53\x55\x56\x57\x8B\x2A\x8B\x2A\x2A\x2A\x2A\x2A\x8B\x2A\xFF"
-			}
-
-			"CanBuyThis"
-			{
-				"windows"   "\x53\x8B\x2A\x2A\x2A\x2A\x2A\x56\x8B\x2A\x2A\x2A\x57\x8B"
-			}
-
-			"AddAccount"
-			{
-				"windows"   "\x8B\x2A\x2A\x2A\x56\x8B\x2A\x8B\x2A\x2A\x2A\x2A\x2A\x03"
-			}
-
-			"GiveNamedItem"
-			{
-				"windows"   "\x8B\x2A\x2A\x2A\x56\x57\x8B\x2A\x8B\x2A\x2A\x2A\x2A\x2A\x2B"
-			}
-
-			"GiveDefaultItems"
-			{
-				"windows"   "\x56\x57\x6A\x2A\x8B\x2A\xE8\x2A\x2A\x2A\x2A\x8B\x2A\x2A\x2A\x2A\x2A\xC6"
-			}
-
-			"GiveShield"
-			{
-				"windows"   "\x56\x8B\x2A\x57\x33\x2A\x8B\x2A\x2A\x2A\x2A\x2A\xB0"
-			}
-
-			"CreateNamedEntity"
-			{
-				"windows"   "\x56\x57\x8B\x2A\x2A\x2A\x57\xFF\x2A\x2A\x2A\x2A\x2A\x8B"
-			}
-
-			"FindEntityByString"
-			{
-				"windows"   "\x51\x8B\x2A\x2A\x2A\x53\x55\x56\x85\x2A\x57"
-			}
-
-			"AddEntityHashValue"
-			{
-				"windows"   "\x8B\x2A\x2A\x2A\x83\x2A\x2A\x85\x2A\x53\x55\x56\x57\x0F"
-			}
-
-			"RemoveEntityHashValue"
-			{
-				"windows"   "\x8B\x2A\x2A\x2A\x53\x8B\x2A\x55\x8A\x2A\x33"
-			}
-
-			"GetWeaponInfo"
-			{
-				"windows"   "\x8B\x2A\x2A\x2A\x2A\x2A\x33\x2A\x85\x2A\x56\x74\x2A\x8B"
-			}
-
-			"GetAmmoIndex"
-			{
-				"windows"   "\x56\x57\x8B\x2A\x2A\x2A\x85\x2A\x74\x2A\xBE"
-			}
-
-			"BuyGunAmmo"
-			{
-				"windows"   "\x56\x57\x8B\x2A\x2A\x2A\x6A\x2A\x8B\x2A\xE8\x2A\x2A\x2A\x2A\x84\x2A\x0F"
 			}
 		}
 
