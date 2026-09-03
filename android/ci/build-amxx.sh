@@ -351,10 +351,10 @@ static const uint32_t tpl[] = {
     0xAA0003E1,  /* mov x1, x0              */
     0xD2800000,  /* movz x0, #0   (id lo)   */
     0xF2A00000,  /* movk  x0, #0, lsl#16    */
-    0xD2E00010,  /* movz x16, #0  (cb lo)   */
-    0xF2C00010,  /* movk x16,#0, lsl#16     */
-    0xF2E00010,  /* movk x16,#0, lsl#32     */
-    0xF3000010,  /* movk x16,#0, lsl#48     */
+    0xD2800010,  /* movz x16, #0  (cb lo)   */
+    0xF2A00010,  /* movk x16,#0, lsl#16     */
+    0xF2C00010,  /* movk x16,#0, lsl#32     */
+    0xF2E00010,  /* movk x16,#0, lsl#48     */
     0xD63F0200,  /* blr  x16                */
     0xA8C27BFD,  /* ldp x29,x30,[sp],#16    */
     0xD65F03C0,  /* ret                     */
@@ -371,6 +371,9 @@ void amxx_DynaMake(char *buf, int id) {
     code[8]  |= ((uint32_t)((cb >> 32) & 0xFFFF)) << 5;
     code[9]  |= ((uint32_t)((cb >> 48) & 0xFFFF)) << 5;
     memcpy(buf, code, sizeof(code));
+    /* ARM64 has a non-coherent instruction cache: flush it, otherwise the
+     * CPU may execute stale cache lines (SIGILL) instead of this code. */
+    __builtin___clear_cache(buf, buf + sizeof(code));
 }
 
 int amxx_CpuSupport(void) {
