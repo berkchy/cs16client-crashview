@@ -19,3 +19,12 @@ diff --git a/amxmodx/CvarManager.cpp b/amxmodx/CvarManager.cpp
  void __attribute__((regparm(3))) Cvar_DirectSet_RegParm(struct cvar_s *var, const char *value)
  {
      Cvar_DirectSet_Custom(var, value, nullptr, true);
+@@ -151,7 +151,7 @@
+ 		{
+ 			// Disabled by default.
+ 
+-#if defined(__linux__)
++#if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
+ 			const char* raw = CommonConfig->GetKeyValue("RegParm");
+ 			bool useRegParm = raw ? (atoi(raw) != 0) : false; 
+ 			if(useRegParm)

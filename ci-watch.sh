@@ -32,6 +32,12 @@ declare -A cur_step
 # job -> 1 once we announced its "completed" result
 declare -A announced_done
 
+# ---- initial snapshot: print current state of all jobs ----
+echo "==> initial state:"
+gh api "repos/$REPO/actions/runs/$RUN/jobs" 2>/dev/null \
+  --jq '.jobs[] | "    " + .name + " -> " + (.status) + (if .conclusion then " (" + .conclusion + ")" else "" end)'
+echo
+
 while true; do
   state="$(gh run view "$RUN" --repo "$REPO" --json status,conclusion --jq '{s:.status,c:.conclusion}' 2>/dev/null)"
   status="$(jq -r '.s' <<<"$state")"
