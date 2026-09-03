@@ -13,6 +13,18 @@
 {
 	"#default" // Build 10210
 	{
+		"CRC"
+		{
+			"server"
+			{
+				"linux" "A954F99C" // libcs_android_arm64.so (CS16Client arm64)
+			}
+			"engine"
+			{
+				"linux" "7489C6C7" // libxash.so (Xash3D arm64)
+			}
+		}
+
 		"Signatures"
 		{
 			"CanPlayerBuy"  // bool CBasePlayer::CanPlayerBuy(bool display)
@@ -375,6 +387,11 @@
 			{
 				"windows" "6BF63A24" // cstrike/dlls/mp.dll
 				"windows" "BD938A62" // czero/dlls/mp.dll
+				"linux" "A954F99C" // libcs_android_arm64.so (CS16Client arm64)
+			}
+			"engine"
+			{
+				"linux" "7489C6C7" // libxash.so (Xash3D arm64)
 			}
 		}
 
