@@ -192,12 +192,34 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
                 Spacer(Modifier.height(10.dp))
 
+                val permLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    if (result.resultCode == android.app.Activity.RESULT_OK) {
+                        if (missing > 0) vm.installAddonsFromBundle()
+                    }
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PrimaryButton(
                         text = if (missing > 0) "Install Missing" else "Rescan",
                         onClick = {
-                            if (missing > 0) vm.installAddonsFromBundle()
-                            else vm.scanAddonsStatus()
+                            if (missing > 0) {
+                                val hasPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    Environment.isExternalStorageManager()
+                                } else true
+                                if (hasPerm) {
+                                    vm.installAddonsFromBundle()
+                                } else {
+                                    val intent = android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                        android.net.Uri.parse("package:${context.packageName}")
+                                    )
+                                    permLauncher.launch(intent)
+                                }
+                            } else {
+                                vm.scanAddonsStatus()
+                            }
                         },
                         icon = {
                             Icon(
