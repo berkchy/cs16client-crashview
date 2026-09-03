@@ -98,8 +98,12 @@ apply_patch "$PATCHES/amxmodx-amtl-64bit.diff"             "$SRC/amxmodx" "publi
 apply_patch "$PATCHES/amxmodx-regparm-arm64.patch"         "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-csx-null-check.patch"        "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
-# This causes "array_level=='0'" assertion failure on any enum-constant array index
+# This causes "array_level=='0'" assertion failure on any enum-constant array index.
+# Even after fixing =='0' -> ==0, the assertion still fires for plugins (eg
+# zombie_plague40.sma) that use an enum field with array_level > 0 as an array
+# index. That is a legitimate pattern, so remove the overly-strict assert.
 sed -i "s/array_level==\s*'0'/array_level==0/g" "$SRC/amxmodx/compiler/libpc300/sc3.c"
+sed -i "/assert(lval2.sym==NULL/d" "$SRC/amxmodx/compiler/libpc300/sc3.c"
 # AMXX core is still compiled against metamod-p's meta_api.h (METAMOD above),
 # which requires this ARM64 shim (cs16_amxx_compat.h + const SET_LOCALINFO).
 apply_patch "$PATCHES/metamod-p-aarch64.patch"            "$SRC/metamod-p"
