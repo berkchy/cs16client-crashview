@@ -1,4 +1,98 @@
-/* minimal empty master to bypass multi-chunk SMC parse bug */
 "Game Master"
 {
+	"virtual.games/cstrike/offsets-common.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbaseplayer.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbaseplayeritem.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbaseplayerweapon.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbaseentity.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbasemonster.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbaseanimating.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbasedelay.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbasebutton.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbasedoor.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbasetoggle.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cbreakable.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cpushable.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cgrenade.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"entities.games/cstrike/offsets-cweaponbox.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
+
+	"gamerules.games/cstrike/offsets-chalflifemultiplay.txt"
+	{
+		"game"  "cstrike"
+		"game"  "czero"
+	}
 }

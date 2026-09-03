@@ -13,6 +13,18 @@
 {
 	"#default" // Build 10210
 	{
+		"CRC"
+		{
+			"server"
+			{
+				"linux" "A954F99C"
+			}
+			"engine"
+			{
+				"linux" "7489C6C7"
+			}
+		}
+
 		"Signatures"
 		{
 			"CanPlayerBuy"  // bool CBasePlayer::CanPlayerBuy(bool display)

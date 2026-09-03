@@ -1,0 +1,4 @@
+/* minimal empty master to bypass multi-chunk SMC parse bug */
+"Game Master"
+{
+}
