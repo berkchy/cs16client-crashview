@@ -1,8 +1,8 @@
 diff --git a/amxmodx/natives.cpp b/amxmodx/natives.cpp
-index d5ae1c7..c8abed5 100755
+index d5ae1c7..2abf966 100755
 --- a/amxmodx/natives.cpp
 +++ b/amxmodx/natives.cpp
-@@ -416,10 +416,67 @@ static cell AMX_NATIVE_CALL param_convert(AMX *amx, cell *params)
+@@ -416,10 +416,70 @@ static cell AMX_NATIVE_CALL param_convert(AMX *amx, cell *params)
  
  	AMX *caller = g_pCaller;
  
@@ -29,9 +29,12 @@ index d5ae1c7..c8abed5 100755
 +	 * on Android ARM64), otherwise it yields a wild pointer -> SIGSEGV. */
 +	int caller_dat = ((AMX_HEADER *)caller->base)->dat;
 +
-+	/* Sanity: the address must lie inside the caller's readable image
-+	 * (data/heap/stack). Anything else means a corrupt caller stack. */
-+	if (caller_addr < caller_dat || caller_addr >= caller->stp)
++	/* Sanity: AMX addresses (params, frm, stp, ...) are relative to the
++	 * DATA section (amx->data), not to the image base -- e.g. 552 is a
++	 * perfectly good string 552 bytes into the caller's data. Anything
++	 * outside [0, stp) means a corrupt caller stack. (Runtime stp itself
++	 * is dat-relative: amx->stp = hdr->stp - hdr->dat - sizeof(cell).) */
++	if (caller_addr < 0 || caller_addr >= caller->stp)
 +	{
 +		LogError(amx, AMX_ERR_NATIVE, "param_convert: caller string address out of range (%d)", caller_addr);
 +		if (have_empty)
@@ -40,13 +43,13 @@ index d5ae1c7..c8abed5 100755
 +	}
 +
 +	cell *src = (cell *)((unsigned char *)caller->base + caller_dat + caller_addr);
-+	cell *limit = (cell *)((unsigned char *)caller->base + caller->stp);
++	cell *limit = (cell *)((unsigned char *)caller->base + caller_dat + caller->stp);
 +
 +	/* Bounded length scan: never read past the caller's image. */
 +	int len = 0;
-+	while (&src[len] < limit && src[len] != 0)
++	while (len < 8192 && &src[len] < limit && src[len] != 0)
 +		len++;
-+	if (&src[len] >= limit)
++	if (len >= 8192 || &src[len] >= limit)
 +	{
 +		LogError(amx, AMX_ERR_NATIVE, "param_convert: unterminated caller string");
 +		if (have_empty)
