@@ -1,5 +1,5 @@
 diff --git a/modules/hamsandwich/Trampolines.h b/modules/hamsandwich/Trampolines.h
-index 8d81bc9..dc04995 100644
+index 8d81bc9..f8d2314 100644
 --- a/modules/hamsandwich/Trampolines.h
 +++ b/modules/hamsandwich/Trampolines.h
 @@ -38,6 +38,7 @@
@@ -10,7 +10,7 @@ index 8d81bc9..dc04995 100644
  #include <stdlib.h> // memalign
  #include <stdio.h>
  
-@@ -590,6 +591,100 @@ namespace Trampolines
+@@ -590,6 +591,102 @@ namespace Trampolines
   */
  inline void *CreateGenericTrampoline(bool thiscall, bool voidcall, bool retbuf, int paramcount, void *extraptr, void *callee, int *size)
  {
@@ -72,7 +72,9 @@ index 8d81bc9..dc04995 100644
 +		0xF2C00010,	/* movk x16, #gate_32, lsl #32 (patched) */
 +		0xF2E00010,	/* movk x16, #gate_48, lsl #48 (patched) */
 +		0xD63F0200,	/* blr x16 */
-+		0x3DC003E0,	/* ldr q0, [sp] (Vector writeback to v0) */
++		0xBD4003E0,	/* ldr s0, [sp] (Vector.x writeback to V0) */
++		0xBD4007E1,	/* ldr s1, [sp, #4] (Vector.y writeback to V1) */
++		0xBD400BE2,	/* ldr s2, [sp, #8] (Vector.z writeback to V2) */
 +		0x910043FF,	/* add sp, sp, #16 */
 +		0xA8C17BFD,	/* ldp x29, x30, [sp], #16 */
 +		0xD65F03C0,	/* ret */
@@ -83,7 +85,7 @@ index 8d81bc9..dc04995 100644
 +	int gi = retbuf ? 14 : 13;
 +	int bytes = (int)(retbuf ? sizeof(tpl_retbuf) : sizeof(tpl));
 +
-+	uint32_t buf[23];
++	uint32_t buf[25];
 +	memcpy(buf, tpl_use, bytes);
 +
 +	uintptr_t hook = (uintptr_t)extraptr;
@@ -111,7 +113,7 @@ index 8d81bc9..dc04995 100644
  	Trampolines::TrampolineMaker tramp;
  
  	if (thiscall)
-@@ -629,6 +724,7 @@ inline void *CreateGenericTrampoline(bool thiscall, bool voidcall, bool retbuf,
+@@ -629,6 +726,7 @@ inline void *CreateGenericTrampoline(bool thiscall, bool voidcall, bool retbuf,
  #endif
  
  	return tramp.Finish(size);
@@ -119,6 +121,19 @@ index 8d81bc9..dc04995 100644
  };
  
  
+diff --git a/modules/hamsandwich/call_funcs.cpp b/modules/hamsandwich/call_funcs.cpp
+index d3ed798..17f7514 100644
+--- a/modules/hamsandwich/call_funcs.cpp
++++ b/modules/hamsandwich/call_funcs.cpp
+@@ -48,7 +48,7 @@ inline void *_GetFunction(void *pthis, int id)
+ {
+ 	void **vtbl=GetVTable(pthis, Offsets.GetBase());
+ 
+-	int **ivtbl=(int **)vtbl;
++	void **ivtbl=vtbl;
+ 	void *func=ivtbl[hooklist[id].vtid];
+ 
+ 	// Iterate through the hooks for the id, see if the function is found
 diff --git a/modules/hamsandwich/hook.h b/modules/hamsandwich/hook.h
 index 744d69b..e92380e 100644
 --- a/modules/hamsandwich/hook.h
