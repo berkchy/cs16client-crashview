@@ -99,6 +99,7 @@ apply_patch "$PATCHES/amxmodx-regparm-arm64.patch"         "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-csx-null-check.patch"        "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-csx-putinserver-guard.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
+apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
 # This causes "array_level=='0'" assertion failure on any enum-constant array index.
 # Even after fixing =='0' -> ==0, the assertion still fires for plugins (eg

@@ -1,0 +1,206 @@
+diff --git a/modules/hamsandwich/Trampolines.h b/modules/hamsandwich/Trampolines.h
+index 8d81bc9..dc04995 100644
+--- a/modules/hamsandwich/Trampolines.h
++++ b/modules/hamsandwich/Trampolines.h
+@@ -38,6 +38,7 @@
+ #endif
+ #include <stddef.h> // size_t
+ #include <string.h> // memcpy
++#include <stdint.h> // uint32_t (ARM64 trampolines)
+ #include <stdlib.h> // memalign
+ #include <stdio.h>
+ 
+@@ -590,6 +591,100 @@ namespace Trampolines
+  */
+ inline void *CreateGenericTrampoline(bool thiscall, bool voidcall, bool retbuf, int paramcount, void *extraptr, void *callee, int *size)
+ {
++#if defined(__aarch64__)
++	/* ARM64 (AAPCS64) trampolines. The x86 byte templates above cannot
++	 * execute here, so fixed ARM64 code is emitted instead. The game calls
++	 * with x0=this, x1-x7=args (every Ham hook fits its integer args in
++	 * x0-x6; floats stay in v-regs, which are never touched; x8, the
++	 * indirect-result register, is preserved). The gate wants
++	 * (Hook*, this, args...), i.e. integer registers shifted by one. The
++	 * retbuf variant (Vector returns) additionally takes an out pointer in
++	 * x1 (args shifted by two) backed by 16 bytes of scratch, written back
++	 * to v0 before returning. sp stays 16-byte aligned; x19-x28 and d8-d15
++	 * are untouched, so all return values pass through untouched.
++	 * Every encoding below was verified with clang -target aarch64. */
++	(void)thiscall;
++	(void)voidcall;
++	(void)paramcount;
++
++	static const uint32_t tpl[] = {
++		0xA9BF7BFD,	/* stp x29, x30, [sp, #-16]! */
++		0x910003FD,	/* mov x29, sp */
++		0xAA0603E7,	/* mov x7, x6 */
++		0xAA0503E6,	/* mov x6, x5 */
++		0xAA0403E5,	/* mov x5, x4 */
++		0xAA0303E4,	/* mov x4, x3 */
++		0xAA0203E3,	/* mov x3, x2 */
++		0xAA0103E2,	/* mov x2, x1 */
++		0xAA0003E1,	/* mov x1, x0 */
++		0xD2800000,	/* movz x0, #hook_lo (patched) */
++		0xF2A00000,	/* movk x0, #hook_16, lsl #16 (patched) */
++		0xF2C00000,	/* movk x0, #hook_32, lsl #32 (patched) */
++		0xF2E00000,	/* movk x0, #hook_48, lsl #48 (patched) */
++		0xD2800010,	/* movz x16, #gate_lo (patched) */
++		0xF2A00010,	/* movk x16, #gate_16, lsl #16 (patched) */
++		0xF2C00010,	/* movk x16, #gate_32, lsl #32 (patched) */
++		0xF2E00010,	/* movk x16, #gate_48, lsl #48 (patched) */
++		0xD63F0200,	/* blr x16 */
++		0xA8C17BFD,	/* ldp x29, x30, [sp], #16 */
++		0xD65F03C0,	/* ret */
++	};
++	static const uint32_t tpl_retbuf[] = {
++		0xA9BF7BFD,	/* stp x29, x30, [sp, #-16]! */
++		0xD10043FF,	/* sub sp, sp, #16 (out scratch) */
++		0x910003FD,	/* mov x29, sp */
++		0xAA0503E7,	/* mov x7, x5 */
++		0xAA0403E6,	/* mov x6, x4 */
++		0xAA0303E5,	/* mov x5, x3 */
++		0xAA0203E4,	/* mov x4, x2 */
++		0xAA0103E3,	/* mov x3, x1 */
++		0xAA0003E2,	/* mov x2, x0 */
++		0xAA1D03E1,	/* mov x1, x29 (out = scratch) */
++		0xD2800000,	/* movz x0, #hook_lo (patched) */
++		0xF2A00000,	/* movk x0, #hook_16, lsl #16 (patched) */
++		0xF2C00000,	/* movk x0, #hook_32, lsl #32 (patched) */
++		0xF2E00000,	/* movk x0, #hook_48, lsl #48 (patched) */
++		0xD2800010,	/* movz x16, #gate_lo (patched) */
++		0xF2A00010,	/* movk x16, #gate_16, lsl #16 (patched) */
++		0xF2C00010,	/* movk x16, #gate_32, lsl #32 (patched) */
++		0xF2E00010,	/* movk x16, #gate_48, lsl #48 (patched) */
++		0xD63F0200,	/* blr x16 */
++		0x3DC003E0,	/* ldr q0, [sp] (Vector writeback to v0) */
++		0x910043FF,	/* add sp, sp, #16 */
++		0xA8C17BFD,	/* ldp x29, x30, [sp], #16 */
++		0xD65F03C0,	/* ret */
++	};
++
++	const uint32_t *tpl_use = retbuf ? tpl_retbuf : tpl;
++	int hi = retbuf ? 10 : 9;
++	int gi = retbuf ? 14 : 13;
++	int bytes = (int)(retbuf ? sizeof(tpl_retbuf) : sizeof(tpl));
++
++	uint32_t buf[23];
++	memcpy(buf, tpl_use, bytes);
++
++	uintptr_t hook = (uintptr_t)extraptr;
++	uintptr_t gate = (uintptr_t)callee;
++	buf[hi + 0] |= ((uint32_t)(hook & 0xFFFF)) << 5;
++	buf[hi + 1] |= ((uint32_t)((hook >> 16) & 0xFFFF)) << 5;
++	buf[hi + 2] |= ((uint32_t)((hook >> 32) & 0xFFFF)) << 5;
++	buf[hi + 3] |= ((uint32_t)((hook >> 48) & 0xFFFF)) << 5;
++	buf[gi + 0] |= ((uint32_t)(gate & 0xFFFF)) << 5;
++	buf[gi + 1] |= ((uint32_t)((gate >> 16) & 0xFFFF)) << 5;
++	buf[gi + 2] |= ((uint32_t)((gate >> 32) & 0xFFFF)) << 5;
++	buf[gi + 3] |= ((uint32_t)((gate >> 48) & 0xFFFF)) << 5;
++
++	/* Same lifetime rules as TrampolineMaker::Finish(): RWX mmap, sized
++	 * for munmap() in ~Hook. ARM64 needs an instruction-cache flush after
++	 * writing code, otherwise the CPU may execute stale cache lines. */
++	void *exec = mmap(NULL, bytes, PROT_READ | PROT_WRITE | PROT_EXEC,
++		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++	memcpy(exec, buf, bytes);
++	__builtin___clear_cache((char *)exec, (char *)exec + bytes);
++	if (size)
++		*size = bytes;
++	return exec;
++#else
+ 	Trampolines::TrampolineMaker tramp;
+ 
+ 	if (thiscall)
+@@ -629,6 +724,7 @@ inline void *CreateGenericTrampoline(bool thiscall, bool voidcall, bool retbuf,
+ #endif
+ 
+ 	return tramp.Finish(size);
++#endif
+ };
+ 
+ 
+diff --git a/modules/hamsandwich/hook.h b/modules/hamsandwich/hook.h
+index 744d69b..e92380e 100644
+--- a/modules/hamsandwich/hook.h
++++ b/modules/hamsandwich/hook.h
+@@ -44,8 +44,8 @@ public:
+ 		{
+ 			// original function is vtable[entry]
+ 			// to not make the compiler whine, cast vtable to int **
+-			int **ivtable=(int **)vtable;
+-			func=(void *)ivtable[entry];
++			void **ivtable=vtable;
++			func=ivtable[entry];
+ 
+ 			// now install a trampoline
+ 			// (int thiscall, int voidcall, int paramcount, void *extraptr)
+@@ -59,7 +59,7 @@ public:
+ 			void *addr = (void *)ALIGN(&ivtable[entry]);
+ 			mprotect(addr,sysconf(_SC_PAGESIZE),PROT_READ|PROT_WRITE);
+ #endif
+-			ivtable[entry]=(int*)tramp;
++			ivtable[entry]=tramp;
+ 
+ 			size_t len=strlen(name);
+ 			ent=new char[len+1];
+@@ -70,7 +70,7 @@ public:
+ 	~Hook()
+ 	{
+ 		// Insert the original function back into the vtable
+-		int **ivtable=(int **)vtable;
++		void **ivtable=vtable;
+ 
+ #if defined(_WIN32)
+ 		DWORD OldFlags;
+@@ -80,7 +80,7 @@ public:
+ 		mprotect(addr,sysconf(_SC_PAGESIZE),PROT_READ|PROT_WRITE);
+ #endif
+ 
+-		ivtable[entry]=(int *)func;
++		ivtable[entry]=func;
+ #if defined(_WIN32)
+ 		VirtualFree(tramp, 0, MEM_RELEASE);
+ #elif defined(__linux__)
+diff --git a/modules/hamsandwich/hook_native.cpp b/modules/hamsandwich/hook_native.cpp
+index 2fc197b..9b28fa5 100644
+--- a/modules/hamsandwich/hook_native.cpp
++++ b/modules/hamsandwich/hook_native.cpp
+@@ -657,9 +657,9 @@ static cell AMX_NATIVE_CALL RegisterHam(AMX *amx, cell *params)
+ 		SpecialbotHandler.RegisterHamSpecialBot(amx, func, function.chars(), post, pfwd);
+ 	}
+ 
+-	int **ivtable=(int **)vtable;
++	void **ivtable=vtable;
+ 
+-	void *vfunction=(void *)ivtable[hooklist[func].vtid];
++	void *vfunction=ivtable[hooklist[func].vtid];
+ 
+ 	// Check the list of this function's hooks, see if the function we have is a hook
+ 
+@@ -744,9 +744,9 @@ static cell AMX_NATIVE_CALL RegisterHamFromEntity(AMX *amx, cell *params)
+ 	Forward *pfwd = new Forward(fwd);
+ 	pfwd->AddRef();
+ 
+-	int **ivtable=(int **)vtable;
++	void **ivtable=vtable;
+ 
+-	void *vfunction=(void *)ivtable[hooklist[func].vtid];
++	void *vfunction=ivtable[hooklist[func].vtid];
+ 
+ 	// Check the list of this function's hooks, see if the function we have is a hook
+ 
+diff --git a/modules/hamsandwich/hook_specialbot.cpp b/modules/hamsandwich/hook_specialbot.cpp
+index 9f9469e..b5f3d3b 100644
+--- a/modules/hamsandwich/hook_specialbot.cpp
++++ b/modules/hamsandwich/hook_specialbot.cpp
+@@ -87,9 +87,8 @@ void CHamSpecialBotHandler::RegisterChecked(AMX *amx, int &func, const char *fun
+ 	pfwd->AddRef();
+ 
+ 	void **vtable = m_specialbot_vtable;
+-	int **ivtable=(int **)vtable;
+ 
+-	void *vfunction=(void *)ivtable[hooklist[func].vtid];
++	void *vfunction=vtable[hooklist[func].vtid];
+ 
+ 	for (size_t i = 0; i < hooks[func].length(); ++i)
+ 	{
