@@ -156,3 +156,15 @@ diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
  	}
  	RETURN_META(MRES_IGNORED);
  }
+diff --git a/modules/cstrike/csx/usermsg.cpp b/modules/cstrike/csx/usermsg.cpp
+--- a/modules/cstrike/csx/usermsg.cpp
++++ b/modules/cstrike/csx/usermsg.cpp
+@@ -136,7 +136,7 @@ void Client_Damage(void* mValue){
+ 	}
+     if( g_grenades.find(enemy , &pAttacker , &weapon ) )
+         pAttacker->saveHit( mPlayer , weapon , damage, aim );
+-	else if ( strcmp("grenade",STRING(enemy->v.classname))==0 ) // ? more checks ?
++	else if ( enemy && enemy->v.classname && strcmp("grenade",STRING(enemy->v.classname))==0 ) // ? more checks ?
+ 			weapon = CSW_C4;
+   }
+ }
