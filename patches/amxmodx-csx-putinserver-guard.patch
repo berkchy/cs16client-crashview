@@ -1,7 +1,45 @@
 diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
 --- a/modules/cstrike/csx/CMisc.cpp
 +++ b/modules/cstrike/csx/CMisc.cpp
-@@ -106,6 +106,10 @@
+@@ -13,6 +13,7 @@
+ 
+ #include "CMisc.h"
+ #include "rank.h"
++#include <cstdio>
+ 
+ // *****************************************************
+ // class Grenades
+@@ -86,7 +87,7 @@ void CPlayer::Disconnect(){
+ 	rank = 0;
+ }
+ 
+-void CPlayer::PutInServer(){
++void CPlayer::PutInServer(const char* nameOverride){
+ 
+ 	//if ( ignoreBots(pEdict) )
+ 	if ( (int)csstats_rankbots->value == 0 &&
+@@ -94,7 +95,19 @@ void CPlayer::PutInServer(){
+ 		return;
+ 
+ 	restartStats();
+-	const char* name = STRING(pEdict->v.netname);
++	// The edict netname can be null, empty or stale for fake clients that
++	// have not finished spawning; strlen/strcmp on it crashes in libc.
++	// Prefer the caller-supplied infobuffer name (always valid), then the
++	// edict netname, then a synthesized placeholder -- never wild memory.
++	char tmpname[32];
++	const char* name = nameOverride;
++	if ( !name || !*name )
++		name = (pEdict && pEdict->v.netname) ? STRING(pEdict->v.netname) : NULL;
++	if ( !name || !*name )
++	{
++		snprintf(tmpname, sizeof(tmpname), "Player#%d", index);
++		name = tmpname;
++	}
+ 	const char* unique = name;
+ 	bool isip = false;
+ 	switch((int)csstats_rank->value) {
+@@ -106,6 +119,10 @@ void CPlayer::PutInServer(){
  		unique = ip;
  		isip = true;
  	}
@@ -12,10 +50,22 @@ diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
  	rank = g_rank.findEntryInRank( unique , name , isip);
  }
  
+diff --git a/modules/cstrike/csx/CMisc.h b/modules/cstrike/csx/CMisc.h
+--- a/modules/cstrike/csx/CMisc.h
++++ b/modules/cstrike/csx/CMisc.h
+@@ -55,7 +55,7 @@ struct CPlayer {
+ 
+ 	void Init(  int pi, edict_t* pe );
+ 	void Connect(const char* ip );
+-	void PutInServer();
++	void PutInServer(const char* nameOverride = 0);
+ 	void Disconnect();
+ 	void saveKill(CPlayer* pVictim, int weapon, int hs, int tk);
+ 	void saveHit(CPlayer* pVictim, int weapon, int damage, int aiming);
 diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
 --- a/modules/cstrike/csx/CRank.cpp
 +++ b/modules/cstrike/csx/CRank.cpp
-@@ -64,6 +64,8 @@
+@@ -64,6 +64,8 @@ RankSystem::RankStats::~RankStats() {
  }
  
  void RankSystem::RankStats::setName( const char* nn  )	{
@@ -24,7 +74,7 @@ diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
  	delete[] name;
  	namelen = strlen(nn) + 1;
  	name = new char[namelen];
-@@ -74,6 +76,8 @@
+@@ -74,6 +76,8 @@ void RankSystem::RankStats::setName( const char* nn  )	{
  }
  
  void RankSystem::RankStats::setUnique( const char* nn  )	{
@@ -33,10 +83,22 @@ diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
  	delete[] unique;
  	uniquelen = strlen(nn) + 1;
  	unique = new char[uniquelen];
+@@ -160,6 +164,11 @@ void RankSystem::unloadCalc()
+ RankSystem::RankStats* RankSystem::findEntryInRank(const char* unique, const char* name, bool isip)
+ {
+ 	RankStats* a = head;
++
++	if ( !unique )
++		unique = "";
++	if ( !name )
++		name = "";
+ 	
+ 	if (isip) // IP lookups need to strip the port from already saved instances.
+ 	{         // Otherwise the stats file would be essentially reset.
 diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
 --- a/modules/cstrike/csx/meta_api.cpp
 +++ b/modules/cstrike/csx/meta_api.cpp
-@@ -219,7 +219,23 @@
+@@ -219,7 +219,30 @@ void ClientDisconnect( edict_t *pEntity )
  
  void ClientPutInServer_Post( edict_t *pEntity ) 
  {
@@ -55,17 +117,42 @@ diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
 +			// Use the fresh edict from the engine, not the one stored at
 +			// ServerActivate time (it may be stale for late-joining bots).
 +			pPlayer->pEdict = pEntity;
-+			pPlayer->PutInServer();
++
++			// The edict netname may be null/stale for spawning bots;
++			// the infobuffer name is always a valid C string.
++			const char* ibname = NULL;
++			char* ib = GET_INFOKEYBUFFER(pEntity);
++			if ( ib )
++				ibname = INFOKEY_VALUE(ib, "name");
++			pPlayer->PutInServer(ibname);
 +		}
 +	}
  
  	RETURN_META(MRES_IGNORED);
  }
-@@ -246,6 +262,7 @@
+@@ -232,11 +255,11 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
+ 		pPlayer->Init(ENTINDEX(pEntity), pEntity);
+ 	}
+ 
+-	const char* name = INFOKEY_VALUE(infobuffer,"name");
+-	const char* oldname = STRING(pEntity->v.netname);
++	const char* name = (infobuffer) ? INFOKEY_VALUE(infobuffer,"name") : NULL;
++	const char* oldname = (pEntity && pEntity->v.netname) ? STRING(pEntity->v.netname) : NULL;
+ 
+ 	if ( pPlayer->rank ){
+-		if ( strcmp(oldname,name) != 0 ) {
++		if ( !oldname || !*oldname || !name || !*name || strcmp(oldname,name) != 0 ) {
+ 			if ((int)csstats_rank->value == 0)
+ 				pPlayer->rank = g_rank.findEntryInRank( name, name );
+ 			else
+@@ -244,8 +267,9 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
  		}
  	}
  	else if ( pPlayer->IsBot() ) {
 +		pPlayer->pEdict = pEntity;
  		pPlayer->Connect( "127.0.0.1" );
- 		pPlayer->PutInServer();
+-		pPlayer->PutInServer();
++		pPlayer->PutInServer(name);
  	}
+ 	RETURN_META(MRES_IGNORED);
+ }
