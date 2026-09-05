@@ -100,7 +100,7 @@ apply_patch "$PATCHES/amxmodx-csx-string-guard.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-amx-hea-adopt.patch"      "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-pcvar-handle-64bit.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-pcvar-debug.patch"       "$SRC/amxmodx"
+apply_patch "$PATCHES/amxmodx-zpdbg-file.patch"        "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
 # This causes "array_level=='0'" assertion failure on any enum-constant array index.
