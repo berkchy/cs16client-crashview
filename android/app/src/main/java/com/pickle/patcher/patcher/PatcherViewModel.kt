@@ -821,8 +821,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 // must be replaced on install.
                 var outdated = false
                 try {
-                    val entry = bundle.manifest.entries.firstOrNull { it.target == target }
-                    val content = entry?.let { bundle.resolveEntry(it) }
+                    val entry = bundle?.manifest?.entries?.firstOrNull { it.target == target }
+                    val content = entry?.let { bundle?.resolveEntry(it) }
                     if (content != null) {
                         outdated = content.size.toLong() != file.length() ||
                             !content.contentEquals(file.readBytes())
