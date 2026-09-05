@@ -13,17 +13,11 @@
 {
 	"#default" // Build 10210
 	{
-		"CRC"
-		{
-			"server"
-			{
-				"linux" "A954F99C"
-			}
-			"engine"
-			{
-				"linux" "7489C6C7"
-			}
-		}
+		// NOTE (CS16Client arm64): the CRC gate below is intentionally
+		// removed. ReGameDLLcs/mobile builds change CRCs every update and
+		// the gate disabled ALL linux signatures ("X is not available").
+		// The linux/mac symbols in this file are verified against
+		// libcs_android_arm64.so, so #default applies unconditionally.
 
 		"Signatures"
 		{
