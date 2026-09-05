@@ -100,7 +100,6 @@ apply_patch "$PATCHES/amxmodx-csx-string-guard.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-amx-hea-adopt.patch"      "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-pcvar-handle-64bit.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-zpdbg-file.patch"        "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
 # This causes "array_level=='0'" assertion failure on any enum-constant array index.
@@ -257,8 +256,6 @@ DEFS=(
   -Dstricmp=strcasecmp
   -Dstrnicmp=strncasecmp
   -DAMX_NOPROPLIST
-  -DPAWN_CELL_SIZE=64
-  -DAMXMODX_BUILD
   -DAMXX_USE_VERSIONLIB
   -DHAVE_STDINT_H
   -DHAVE_I64
@@ -772,7 +769,7 @@ LIBPC="$AMXX/compiler/libpc300"
 # amxmodx-pawncc-64bit.patch drops the prefix.h include.
 PC_BUILD="$TMP/libpc300"
 mkdir -p "$PC_BUILD/obj"
-PC_COMMON="-std=gnu17 -O0 -fPIC -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DLINUX \
+PC_COMMON="-std=gnu17 -O0 -fPIC -DHAVE_I64 -DLINUX \
   -DHAVE_UNISTD_H -DHAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_ALLOCA_H -I$LIBPC"
 # Mirror upstream AMBuilder's amxxpc32 source list exactly; NO_MAIN on every
 # unit strips main()s (sc1.c, pawncc.c, prefix.c, ...), PAWNC_DLL selects the
@@ -804,7 +801,7 @@ if command -v "$HOSTCXX" >/dev/null 2>&1 || [ -x "$HOSTCXX" ]; then
   # wide-char paths so wcslen isn't needed; LINUX pulls in sclinux.h; HAVE_STDINT_H
   # lets libpawnc skip its own int32_t typedefs; -I third_party resolves
   # "zlib/zlib.h".
-  "$HOSTCXX" -O2 -std=c++14 -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DHAVE_STDINT_H \
+  "$HOSTCXX" -O2 -std=c++14 -DHAVE_I64 -DHAVE_STDINT_H \
     -DLINUX -DAMX_ANSIONLY \
     -I"$LIBPC" -I"$AMXX/public" -I"$AMXX/compiler/amxxpc" -I"$AMXX/third_party" \
     -o "$PC_BUILD/amxxpc" "$AMXX/compiler/amxxpc"/amxxpc.cpp \
@@ -865,7 +862,7 @@ echo "== building arm64 amxxpc (embedded) =="
 PC_A64="$TMP/amxxpc-arm64"
 rm -rf "$PC_A64"
 mkdir -p "$PC_A64"
-PC_A64_COMMON="-std=gnu17 -O2 -fPIC -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DLINUX \
+PC_A64_COMMON="-std=gnu17 -O2 -fPIC -DHAVE_I64 -DLINUX \
   -DHAVE_UNISTD_H -DHAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_ALLOCA_H \
   -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN -I$LIBPC"
 for s in sc1 sc2 sc3 sc4 sc5 sc6 sc7 scvars scmemfil scstate sclist sci18n \
@@ -881,7 +878,7 @@ for f in "$AMXX/third_party/zlib"/*.c; do
   [ -e "$f" ] || continue
   "$CC" -O2 -fPIC -c "$f" -o "$PC_A64/zobj/$(basename "${f%.c}").o"
 done
-"$CXX" -O2 -std=c++14 -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DHAVE_STDINT_H \
+"$CXX" -O2 -std=c++14 -DHAVE_I64 -DHAVE_STDINT_H \
   -DLINUX -DAMX_ANSIONLY -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN \
   -I"$LIBPC" -I"$AMXX/public" -I"$AMXX/compiler/amxxpc" -I"$AMXX/third_party" \
   -o "$PC_A64/amxxpc" "$AMXX/compiler/amxxpc"/amxxpc.cpp \
