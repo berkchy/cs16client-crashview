@@ -6,7 +6,7 @@ diff --git a/amxmodx/CvarManager.cpp b/amxmodx/CvarManager.cpp
  				{
  					float fvalue = atof(var->string);
 -					*bind->varAddress = amx_ftoc(fvalue);
-+					*bind->varAddress = amx_ftoc((REAL)fvalue);
++					{ REAL _widen = (REAL)(fvalue); *bind->varAddress = amx_ftoc(_widen); }
  					break;
  				}
  				case CvarBind::CvarType_String:
@@ -15,7 +15,7 @@ diff --git a/amxmodx/CvarManager.cpp b/amxmodx/CvarManager.cpp
  			break;
  		case CvarBind::CvarType_Float:
 -			*bind->varAddress = amx_ftoc(info->var->value);
-+			*bind->varAddress = amx_ftoc((REAL)info->var->value);
++			{ REAL _widen = (REAL)(info->var->value); *bind->varAddress = amx_ftoc(_widen); }
  			break;
  		case CvarBind::CvarType_String:
  			set_amxstring_simple(bind->varAddress, info->var->string, bind->varLength);
@@ -27,7 +27,7 @@ diff --git a/amxmodx/amxmodx.cpp b/amxmodx/amxmodx.cpp
  	float flValue = atof(value);
  
 -	return amx_ftoc(flValue);
-+	return amx_ftoc((REAL)flValue);
++	{ REAL _widen = (REAL)(flValue); return amx_ftoc(_widen); }
  }
  
  static cell AMX_NATIVE_CALL read_args(AMX *amx, cell *params) /* 2 param */
@@ -39,7 +39,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = g_CvarManager.FindCvar(name);
  
 -	return info ? amx_ftoc(info->var->value) : 0;
-+	return info ? amx_ftoc((REAL)info->var->value) : 0;
++	{ REAL _widen = info ? (REAL)info->var->value : (REAL)0; return amx_ftoc(_widen); }
  }
  
  // get_cvar_num(const cvarname[])
@@ -48,7 +48,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	}
  
 -	return amx_ftoc(ptr->value);
-+	return amx_ftoc((REAL)ptr->value);
++	{ REAL _widen = (REAL)(ptr->value); return amx_ftoc(_widen); }
  }
  
  // get_pcvar_num(pcvar)
@@ -57,7 +57,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	}
  
 -	*get_amxaddr(amx, params[3]) = amx_ftoc(bound);
-+	*get_amxaddr(amx, params[3]) = amx_ftoc((REAL)bound);
++	{ REAL _widen = (REAL)(bound); *get_amxaddr(amx, params[3]) = amx_ftoc(_widen); }
  
  	return hasBound;
  }
@@ -69,7 +69,7 @@ diff --git a/amxmodx/datapacks.cpp b/amxmodx/datapacks.cpp
  	float value = d->ReadFloat();
  
 -	return amx_ftoc(value);
-+	return amx_ftoc((REAL)value);
++	{ REAL _widen = (REAL)(value); return amx_ftoc(_widen); }
  }
  
  static cell AMX_NATIVE_CALL ReadPackString(AMX* amx, cell* params)
@@ -81,7 +81,7 @@ diff --git a/amxmodx/string.cpp b/amxmodx/string.cpp
  	*endPos = pEnd - pString;
  
 -	return amx_ftoc(result);
-+	return amx_ftoc((REAL)result);
++	{ REAL _widen = (REAL)(result); return amx_ftoc(_widen); }
  }
  
  static cell AMX_NATIVE_CALL numtostr(AMX *amx, cell *params) /* 3 param */
