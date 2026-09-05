@@ -1,0 +1,87 @@
+diff --git a/amxmodx/CvarManager.cpp b/amxmodx/CvarManager.cpp
+--- a/amxmodx/CvarManager.cpp
++++ b/amxmodx/CvarManager.cpp
+@@ -83,7 +83,7 @@ void Cvar_DirectSet_Custom(struct cvar_s *var, const char *value, IRehldsHook_Cv
+ 				case CvarBind::CvarType_Float:
+ 				{
+ 					float fvalue = atof(var->string);
+-					*bind->varAddress = amx_ftoc(fvalue);
++					*bind->varAddress = amx_ftoc((REAL)fvalue);
+ 					break;
+ 				}
+ 				case CvarBind::CvarType_String:
+@@ -427,7 +427,7 @@ bool CvarManager::BindCvar(CvarInfo* info, CvarBind::CvarType type, AMX* amx, ce
+ 			*bind->varAddress = atoi(info->var->string);
+ 			break;
+ 		case CvarBind::CvarType_Float:
+-			*bind->varAddress = amx_ftoc(info->var->value);
++			*bind->varAddress = amx_ftoc((REAL)info->var->value);
+ 			break;
+ 		case CvarBind::CvarType_String:
+ 			set_amxstring_simple(bind->varAddress, info->var->string, bind->varLength);
+diff --git a/amxmodx/amxmodx.cpp b/amxmodx/amxmodx.cpp
+--- a/amxmodx/amxmodx.cpp
++++ b/amxmodx/amxmodx.cpp
+@@ -2652,7 +2652,7 @@ static cell AMX_NATIVE_CALL read_argv_float(AMX *amx, cell *params) /* 1 param *
+ 	const char *value = g_fakecmd.notify ? ((argc >= 1 && argc < 3 && g_fakecmd.argv[argc] != nullptr) ? g_fakecmd.argv[argc] : "") : CMD_ARGV(argc);
+ 	float flValue = atof(value);
+ 
+-	return amx_ftoc(flValue);
++	return amx_ftoc((REAL)flValue);
+ }
+ 
+ static cell AMX_NATIVE_CALL read_args(AMX *amx, cell *params) /* 2 param */
+diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
+--- a/amxmodx/cvars.cpp
++++ b/amxmodx/cvars.cpp
+@@ -182,7 +182,7 @@ static cell AMX_NATIVE_CALL get_cvar_float(AMX *amx, cell *params)
+ 
+ 	CvarInfo* info = g_CvarManager.FindCvar(name);
+ 
+-	return info ? amx_ftoc(info->var->value) : 0;
++	return info ? amx_ftoc((REAL)info->var->value) : 0;
+ }
+ 
+ // get_cvar_num(const cvarname[])
+@@ -304,7 +304,7 @@ static cell AMX_NATIVE_CALL get_pcvar_float(AMX *amx, cell *params)
+ 		return 0;
+ 	}
+ 
+-	return amx_ftoc(ptr->value);
++	return amx_ftoc((REAL)ptr->value);
+ }
+ 
+ // get_pcvar_num(pcvar)
+@@ -369,7 +369,7 @@ static cell AMX_NATIVE_CALL get_pcvar_bounds(AMX *amx, cell *params)
+ 			return 0;
+ 	}
+ 
+-	*get_amxaddr(amx, params[3]) = amx_ftoc(bound);
++	*get_amxaddr(amx, params[3]) = amx_ftoc((REAL)bound);
+ 
+ 	return hasBound;
+ }
+diff --git a/amxmodx/datapacks.cpp b/amxmodx/datapacks.cpp
+--- a/amxmodx/datapacks.cpp
++++ b/amxmodx/datapacks.cpp
+@@ -121,7 +121,7 @@ static cell AMX_NATIVE_CALL ReadPackFloat(AMX* amx, cell* params)
+ 
+ 	float value = d->ReadFloat();
+ 
+-	return amx_ftoc(value);
++	return amx_ftoc((REAL)value);
+ }
+ 
+ static cell AMX_NATIVE_CALL ReadPackString(AMX* amx, cell* params)
+diff --git a/amxmodx/string.cpp b/amxmodx/string.cpp
+--- a/amxmodx/string.cpp
++++ b/amxmodx/string.cpp
+@@ -478,7 +478,7 @@ static cell AMX_NATIVE_CALL amx_strtof(AMX *amx, cell *params) /* 2 param */
+ 
+ 	*endPos = pEnd - pString;
+ 
+-	return amx_ftoc(result);
++	return amx_ftoc((REAL)result);
+ }
+ 
+ static cell AMX_NATIVE_CALL numtostr(AMX *amx, cell *params) /* 3 param */
