@@ -87,6 +87,28 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _scriptRoot = MutableStateFlow<String?>(null)
     val scriptRoot: StateFlow<String?> = _scriptRoot.asStateFlow()
 
+    /** .amxx output folder picked by the user; null = "<scripts>/compiled". */
+    private val _outputRoot = MutableStateFlow<String?>(null)
+    val outputRoot: StateFlow<String?> = _outputRoot.asStateFlow()
+
+    private val compilerPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("compiler_prefs", Context.MODE_PRIVATE)
+    }
+
+    init {
+        // Restore persisted compiler folders so the user does not have to
+        // re-pick them on every app start.
+        val savedScripts = compilerPrefs.getString("script_root", null)
+        if (!savedScripts.isNullOrEmpty() && File(savedScripts).isDirectory) {
+            _scriptRoot.value = savedScripts
+            refreshScripts()
+        }
+        val savedOutput = compilerPrefs.getString("output_root", null)
+        if (!savedOutput.isNullOrEmpty() && File(savedOutput).isDirectory) {
+            _outputRoot.value = savedOutput
+        }
+    }
+
     private val _compile = MutableStateFlow<CompileState>(CompileState.Idle)
     val compile: StateFlow<CompileState> = _compile.asStateFlow()
 
@@ -384,7 +406,38 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _scriptRoot.value = dir.absolutePath
+        compilerPrefs.edit().putString("script_root", dir.absolutePath).apply()
         refreshScripts()
+    }
+
+    /**
+     * Called from the SAF folder picker for the .amxx output folder.
+     * Persisted the same way as the scripts folder.
+     */
+    fun setOutputRoot(uri: Uri?) {
+        if (uri == null) return
+        val app = getApplication<Application>()
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        try {
+            app.contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (_: Exception) {
+            // grant may not be persistable (rare); output still works this session
+        }
+        val dir = uriToDir(uri) ?: let {
+            _compile.value = CompileState.Failed(
+                "Could not resolve the picked folder to a disk path.\n" +
+                    "Pick a folder on the device's internal storage."
+            )
+            return
+        }
+        _outputRoot.value = dir.absolutePath
+        compilerPrefs.edit().putString("output_root", dir.absolutePath).apply()
+    }
+
+    /** Clears the custom output folder (back to "<scripts>/compiled"). */
+    fun clearOutputRoot() {
+        _outputRoot.value = null
+        compilerPrefs.edit().remove("output_root").apply()
     }
 
     private fun uriToDir(uri: Uri): File? {
@@ -466,7 +519,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 if (includeDir.isDirectory) {
                     cmd.add("-i${includeDir.absolutePath}")
                 }
-                val compiledDir = File(scriptDir, "compiled")
+                val compiledDir = _outputRoot.value?.let { File(it) }?.takeIf { it.isDirectory }
+                    ?: File(scriptDir, "compiled")
                 compiledDir.mkdirs()
                 val outPath = File(compiledDir, f.nameWithoutExtension + ".amxx").absolutePath
                 cmd.add("-o$outPath")
@@ -495,7 +549,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     append("exit=$exit\n")
                     val out = File(compiledDir, f.nameWithoutExtension + ".amxx")
                     if (exit == 0 && out.exists()) {
-                        append("OK: compiled/${out.name} (${out.length()} bytes)")
+                        append("OK: ${compiledDir.name}/${out.name} (${out.length()} bytes)\n")
+                        append("in: ${compiledDir.absolutePath}")
                     } else {
                         append("Compile failed.")
                     }

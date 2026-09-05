@@ -61,12 +61,17 @@ fun CompilerScreen(vm: PatcherViewModel) {
     val scriptRoot by vm.scriptRoot.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
     var showPermissionRationale by remember { mutableStateOf(false) }
+    val outputRoot by vm.outputRoot.collectAsState()
+    var pickForOutput by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
-    ) { uri -> uri?.let(vm::setScriptRoot) }
+    ) { uri ->
+        if (pickForOutput) uri?.let(vm::setOutputRoot) else uri?.let(vm::setScriptRoot)
+        pickForOutput = false
+    }
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -131,7 +136,7 @@ fun CompilerScreen(vm: PatcherViewModel) {
             Spacer(Modifier.height(8.dp))
             PrimaryButton(
                 text = if (scriptRoot != null) "Change" else "Select folder",
-                onClick = { requestStorageAndPickFolder() },
+                onClick = { pickForOutput = false; requestStorageAndPickFolder() },
                 icon = { Icon(Icons.Filled.CreateNewFolder, null, modifier = Modifier.size(18.dp)) },
             )
 
@@ -164,6 +169,35 @@ fun CompilerScreen(vm: PatcherViewModel) {
                             },
                         )
                     }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("OUTPUT FOLDER")
+        AppCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    outputRoot ?: "Default: <scripts>/compiled",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (outputRoot != null) Accent else Gray40,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row {
+                PrimaryButton(
+                    text = if (outputRoot != null) "Change" else "Select folder",
+                    onClick = { pickForOutput = true; requestStorageAndPickFolder() },
+                    icon = { Icon(Icons.Filled.CreateNewFolder, null, modifier = Modifier.size(18.dp)) },
+                )
+                if (outputRoot != null) {
+                    Spacer(Modifier.width(8.dp))
+                    SecondaryButton(
+                        text = "Default",
+                        onClick = { vm.clearOutputRoot() },
+                    )
                 }
             }
         }
