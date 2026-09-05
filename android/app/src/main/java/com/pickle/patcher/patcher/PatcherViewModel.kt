@@ -487,11 +487,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         _appUpdate.value = AppUpdate.Idle
     }
 
-    companion object {
-        /** Releases (tags + patcher APK) are published here by CI. */
-        const val APP_RELEASE_REPO = "berkchy/cs16client-crashview"
-    }
-
     /**
      * Called from the SAF folder picker. Persists the tree grant, resolves the picked
      * volume folder to a real disk path (MANAGE_EXTERNAL_STORAGE already grants raw
@@ -747,6 +742,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
+        /** Releases (tags + patcher APK) are published here by CI. */
+        const val APP_RELEASE_REPO = "berkchy/cs16client-crashview"
     }
 
     /**

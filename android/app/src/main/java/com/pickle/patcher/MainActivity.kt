@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -93,7 +94,7 @@ fun PatcherApp(vm: PatcherViewModel) {
     val entry by nav.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route
     val context = androidx.compose.ui.platform.LocalContext.current
-    val update by androidx.compose.runtime.collectAsState(vm.appUpdate)
+    val update by vm.appUpdate.collectAsState()
 
     androidx.compose.runtime.LaunchedEffect(update) {
         val u = update
