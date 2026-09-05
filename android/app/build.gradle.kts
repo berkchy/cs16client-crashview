@@ -20,7 +20,10 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        // CI passes the release tag (v1.20.x) via APP_VERSION_NAME so the
+        // in-app updater can compare against GitHub releases. Local builds
+        // keep the static fallback.
+        versionName = System.getenv("APP_VERSION_NAME")?.takeIf { it.startsWith("v") } ?: "0.1.0"
         vectorDrawables { useSupportLibrary = true }
     }
 

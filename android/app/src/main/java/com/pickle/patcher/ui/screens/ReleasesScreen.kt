@@ -146,6 +146,22 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         SectionHeader("APP UPDATE")
         AppCard {
+            val pm = context.packageManager
+            val current = try {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0)).versionName
+                } else {
+                    @Suppress("DEPRECATION") pm.getPackageInfo(context.packageName, 0).versionName
+                }
+            } catch (_: Throwable) {
+                null
+            }
+            Text(
+                "Current: ${current ?: "unknown"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+            Spacer(Modifier.height(4.dp))
             Text(
                 "Check GitHub releases for a newer patcher APK. If one is found, " +
                     "a popup offers download with progress and automatic install.",

@@ -69,7 +69,6 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     vm.autoInstallAddons()
                     vm.scanAddonsStatus()
-                    vm.checkAppUpdate()
                 }
                 PatcherApp(vm)
             }
@@ -95,6 +94,23 @@ fun PatcherApp(vm: PatcherViewModel) {
     val currentRoute = entry?.destination?.route
     val context = androidx.compose.ui.platform.LocalContext.current
     val update by vm.appUpdate.collectAsState()
+    val pollEnabled by vm.pollEnabled.collectAsState()
+
+    // Poll GitHub releases every 15s while the app is open. Stops as soon as
+    // the popup shows or the user interacts with it (dismiss/download).
+    LaunchedEffect(pollEnabled) {
+        if (!pollEnabled) return@LaunchedEffect
+        vm.checkAppUpdate()
+        while (vm.pollEnabled.value) {
+            kotlinx.coroutines.delay(15_000)
+            if (!vm.pollEnabled.value) break
+            when (vm.appUpdate.value) {
+                is PatcherViewModel.AppUpdate.Idle,
+                is PatcherViewModel.AppUpdate.Failed -> vm.checkAppUpdate()
+                else -> break
+            }
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(update) {
         val u = update

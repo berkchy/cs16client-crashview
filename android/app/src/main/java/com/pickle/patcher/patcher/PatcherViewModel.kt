@@ -429,13 +429,17 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _appUpdate = MutableStateFlow<AppUpdate>(AppUpdate.Idle)
     val appUpdate: StateFlow<AppUpdate> = _appUpdate.asStateFlow()
 
+    /** Set to false once the popup shows or the user interacts — polling stops. */
+    private val _pollEnabled = MutableStateFlow(true)
+    val pollEnabled: StateFlow<Boolean> = _pollEnabled.asStateFlow()
+
     private val updatePrefs by lazy {
         getApplication<Application>().getSharedPreferences("updater_prefs", Context.MODE_PRIVATE)
     }
 
     fun checkAppUpdate(silent: Boolean = true) {
         val cur = _appUpdate.value
-        if (cur is AppUpdate.Checking || cur is AppUpdate.Downloading) return
+        if (cur is AppUpdate.Checking || cur is AppUpdate.Downloading || cur is AppUpdate.Downloaded) return
         viewModelScope.launch(Dispatchers.IO) {
             if (!silent) _appUpdate.value = AppUpdate.Checking
             try {
@@ -445,8 +449,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     _appUpdate.value = AppUpdate.Idle
                     return@launch
                 }
+                // Primary: compare against our own version (CI stamps the tag
+                // into versionName). Fallback: last dismissed/seen tag.
+                val ours = try {
+                    getApplication<Application>().packageManager
+                        .getPackageInfo(getApplication<Application>().packageName, 0).versionName
+                } catch (_: Throwable) {
+                    null
+                }
                 val known = updatePrefs.getString("known_tag", null)
-                _appUpdate.value = if (rel.tag_name != known) {
+                val isNew = rel.tag_name != known &&
+                    (ours == null || !ours.startsWith("v") || rel.tag_name != ours)
+                _appUpdate.value = if (isNew) {
                     AppUpdate.Available(rel.tag_name, rel.body.orEmpty(), asset.size, asset.browser_download_url)
                 } else {
                     AppUpdate.Idle
@@ -459,6 +473,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun downloadAppUpdate() {
         val cur = _appUpdate.value as? AppUpdate.Available ?: return
+        _pollEnabled.value = false
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val dest = File(workDir, "update.apk")
@@ -480,6 +495,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         (_appUpdate.value as? AppUpdate.Available)?.let {
             updatePrefs.edit().putString("known_tag", it.tag).apply()
         }
+        _pollEnabled.value = false
         _appUpdate.value = AppUpdate.Idle
     }
 

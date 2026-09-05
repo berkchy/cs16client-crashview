@@ -152,6 +152,8 @@ jobs:
 
       - name: Build the patcher APK
         working-directory: android
+        env:
+          APP_VERSION_NAME: ${{ github.ref_name }}
         run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
 
       - name: Upload app APK artifact
