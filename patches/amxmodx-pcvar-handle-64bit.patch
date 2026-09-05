@@ -1,7 +1,7 @@
 diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
 --- a/amxmodx/cvars.cpp
 +++ b/amxmodx/cvars.cpp
-@@ -14,6 +14,33 @@
+@@ -14,6 +14,35 @@
  char CVarTempBuffer[64];
  const char *invis_cvar_list[5] ={ "amxmodx_version", "amxmodx_modules", "amx_debug", "amx_mldebug", "amx_client_languages" };
  
@@ -16,6 +16,8 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
 +{
 +	if (!var)
 +		return 0;
++	if (s_pcvarHandles.empty())
++		s_pcvarHandles.append(NULL); // index 0 stays invalid
 +	for (size_t i = 1; i < s_pcvarHandles.length(); i++)
 +	{
 +		if (s_pcvarHandles[i] == var)
@@ -35,7 +37,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  // create_cvar(const name[], const default_value[], flags = 0, const description[] = "", bool:has_min = false, Float:min_val = 0.0, bool:has_max = false, Float:max_val = 0.0)
  static cell AMX_NATIVE_CALL create_cvar(AMX *amx, cell *params)
  {
-@@ -57,7 +84,7 @@ static cell AMX_NATIVE_CALL create_cvar(AMX *amx, cell *params)
+@@ -57,7 +86,7 @@ static cell AMX_NATIVE_CALL create_cvar(AMX *amx, cell *params)
  		g_CvarManager.SetCvarMin(info, hasMin, minVal, plugin->getId());
  		g_CvarManager.SetCvarMax(info, hasMax, maxVal, plugin->getId());
  
@@ -44,7 +46,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	}
  
  	return 0;
-@@ -84,7 +111,7 @@ static cell AMX_NATIVE_CALL register_cvar(AMX *amx, cell *params)
+@@ -84,7 +113,7 @@ static cell AMX_NATIVE_CALL register_cvar(AMX *amx, cell *params)
  
  	if (info)
  	{
@@ -53,7 +55,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	}
  
  	return 0;
-@@ -105,13 +132,13 @@ static cell AMX_NATIVE_CALL get_cvar_pointer(AMX *amx, cell *params)
+@@ -105,13 +134,13 @@ static cell AMX_NATIVE_CALL get_cvar_pointer(AMX *amx, cell *params)
  
  	CvarInfo* info = g_CvarManager.FindCvar(name);
  
@@ -69,7 +71,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  
  	if (!var)
  	{
-@@ -284,7 +311,7 @@ static cell AMX_NATIVE_CALL set_cvar_string(AMX *amx, cell *params)
+@@ -284,7 +313,7 @@ static cell AMX_NATIVE_CALL set_cvar_string(AMX *amx, cell *params)
  // get_pcvar_flags(pcvar)
  static cell AMX_NATIVE_CALL get_pcvar_flags(AMX *amx, cell *params)
  {
@@ -78,7 +80,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -297,7 +324,7 @@ static cell AMX_NATIVE_CALL get_pcvar_flags(AMX *amx, cell *params)
+@@ -297,7 +326,7 @@ static cell AMX_NATIVE_CALL get_pcvar_flags(AMX *amx, cell *params)
  // Float:get_pcvar_float(pcvar)
  static cell AMX_NATIVE_CALL get_pcvar_float(AMX *amx, cell *params)
  {
@@ -87,7 +89,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -310,7 +337,7 @@ static cell AMX_NATIVE_CALL get_pcvar_float(AMX *amx, cell *params)
+@@ -310,7 +339,7 @@ static cell AMX_NATIVE_CALL get_pcvar_float(AMX *amx, cell *params)
  // get_pcvar_num(pcvar)
  static cell AMX_NATIVE_CALL get_pcvar_num(AMX *amx, cell *params)
  {
@@ -96,7 +98,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -329,7 +356,7 @@ static cell AMX_NATIVE_CALL get_pcvar_bool(AMX *amx, cell *params)
+@@ -329,7 +358,7 @@ static cell AMX_NATIVE_CALL get_pcvar_bool(AMX *amx, cell *params)
  // get_pcvar_string(pcvar, string[], maxlen)
  static cell AMX_NATIVE_CALL get_pcvar_string(AMX *amx, cell *params)
  {
@@ -105,7 +107,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -342,7 +369,7 @@ static cell AMX_NATIVE_CALL get_pcvar_string(AMX *amx, cell *params)
+@@ -342,7 +371,7 @@ static cell AMX_NATIVE_CALL get_pcvar_string(AMX *amx, cell *params)
  // get_pcvar_bounds(pcvar, CvarBounds:type, &Float:value)
  static cell AMX_NATIVE_CALL get_pcvar_bounds(AMX *amx, cell *params)
  {
@@ -114,7 +116,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = nullptr;
  
  	if (!ptr || !(info = g_CvarManager.FindCvar(ptr->name)))
-@@ -377,7 +404,7 @@ static cell AMX_NATIVE_CALL get_pcvar_bounds(AMX *amx, cell *params)
+@@ -377,7 +406,7 @@ static cell AMX_NATIVE_CALL get_pcvar_bounds(AMX *amx, cell *params)
  // bind_pcvar_float(pcvar, &Float:var)
  static cell AMX_NATIVE_CALL bind_pcvar_float(AMX *amx, cell *params)
  {
@@ -123,7 +125,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = nullptr;
  
  	if (!ptr || !(info = g_CvarManager.FindCvar(ptr->name)))
-@@ -392,7 +419,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_float(AMX *amx, cell *params)
+@@ -392,7 +421,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_float(AMX *amx, cell *params)
  // bind_pcvar_num(pcvar, &any:var)
  static cell AMX_NATIVE_CALL bind_pcvar_num(AMX *amx, cell *params)
  {
@@ -132,7 +134,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = nullptr;
  
  	if (!ptr || !(info = g_CvarManager.FindCvar(ptr->name)))
-@@ -407,7 +434,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_num(AMX *amx, cell *params)
+@@ -407,7 +436,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_num(AMX *amx, cell *params)
  // bind_pcvar_string(pcvar, any:var[], varlen)
  static cell AMX_NATIVE_CALL bind_pcvar_string(AMX *amx, cell *params)
  {
@@ -141,7 +143,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = nullptr;
  
  	if (!ptr || !(info = g_CvarManager.FindCvar(ptr->name)))
-@@ -422,7 +449,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_string(AMX *amx, cell *params)
+@@ -422,7 +451,7 @@ static cell AMX_NATIVE_CALL bind_pcvar_string(AMX *amx, cell *params)
  // set_pcvar_flags(pcvar, flags)
  static cell AMX_NATIVE_CALL set_pcvar_flags(AMX *amx, cell *params)
  {
@@ -150,7 +152,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -437,7 +464,7 @@ static cell AMX_NATIVE_CALL set_pcvar_flags(AMX *amx, cell *params)
+@@ -437,7 +466,7 @@ static cell AMX_NATIVE_CALL set_pcvar_flags(AMX *amx, cell *params)
  // set_pcvar_float(pcvar, Float:num)
  static cell AMX_NATIVE_CALL set_pcvar_float(AMX *amx, cell *params)
  {
@@ -159,7 +161,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -453,7 +480,7 @@ static cell AMX_NATIVE_CALL set_pcvar_float(AMX *amx, cell *params)
+@@ -453,7 +482,7 @@ static cell AMX_NATIVE_CALL set_pcvar_float(AMX *amx, cell *params)
  // set_pcvar_num(pcvar, num)
  static cell AMX_NATIVE_CALL set_pcvar_num(AMX *amx, cell *params)
  {
@@ -168,7 +170,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -469,7 +496,7 @@ static cell AMX_NATIVE_CALL set_pcvar_num(AMX *amx, cell *params)
+@@ -469,7 +498,7 @@ static cell AMX_NATIVE_CALL set_pcvar_num(AMX *amx, cell *params)
  // set_pcvar_string(pcvar, const string[])
  static cell AMX_NATIVE_CALL set_pcvar_string(AMX *amx, cell *params)
  {
@@ -177,7 +179,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	if (!ptr)
  	{
  		LogError(amx, AMX_ERR_NATIVE, "Invalid CVAR pointer");
-@@ -486,7 +513,7 @@ static cell AMX_NATIVE_CALL set_pcvar_string(AMX *amx, cell *params)
+@@ -486,7 +515,7 @@ static cell AMX_NATIVE_CALL set_pcvar_string(AMX *amx, cell *params)
  // set_pcvar_bounds(pcvar, CvarBounds:type, bool:set, Float:value = 0.0)
  static cell AMX_NATIVE_CALL set_pcvar_bounds(AMX *amx, cell *params)
  {
@@ -186,7 +188,7 @@ diff --git a/amxmodx/cvars.cpp b/amxmodx/cvars.cpp
  	CvarInfo* info = nullptr;
  
  	if (!ptr || !(info = g_CvarManager.FindCvar(ptr->name)))
-@@ -563,7 +590,7 @@ static cell AMX_NATIVE_CALL get_plugins_cvar(AMX *amx, cell *params)
+@@ -563,7 +592,7 @@ static cell AMX_NATIVE_CALL get_plugins_cvar(AMX *amx, cell *params)
  		set_amxstring(amx, params[2], info->name.chars(), params[3]);
  		*get_amxaddr(amx, params[4]) = info->var->flags;
  		*get_amxaddr(amx, params[5]) = info->pluginId;
