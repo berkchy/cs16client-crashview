@@ -146,6 +146,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         SectionHeader("APP UPDATE")
         AppCard {
+            val context = LocalContext.current
             val pm = context.packageManager
             val current = try {
                 if (android.os.Build.VERSION.SDK_INT >= 33) {
