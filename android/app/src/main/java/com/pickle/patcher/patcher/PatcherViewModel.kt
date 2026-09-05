@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -291,21 +292,33 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val bundle = loadedBundle ?: bundleProvider.loadEmbedded() ?: bundleProvider.loadCachedBundle()
                     ?: throw IOException("No bundle available — load or download a bundle first.")
                 var installed = 0
+                var updated = 0
                 var skipped = 0
                 for (entry in bundle.manifest.entries) {
                     if (!entry.target.startsWith("addons/")) continue
+                    val content = bundle.resolveEntry(entry) ?: continue
                     val outFile = File(target, entry.target)
                     if (outFile.exists()) {
-                        skipped++
-                        continue
+                        val same = try {
+                            outFile.length() == content.size.toLong() &&
+                                outFile.readBytes().contentEquals(content)
+                        } catch (_: Throwable) {
+                            false
+                        }
+                        if (same) {
+                            skipped++
+                            continue
+                        }
+                        outFile.writeBytes(content)
+                        updated++
+                    } else {
+                        outFile.parentFile?.mkdirs()
+                        outFile.writeBytes(content)
+                        installed++
                     }
-                    val content = bundle.resolveEntry(entry) ?: continue
-                    outFile.parentFile?.mkdirs()
-                    outFile.writeBytes(content)
-                    installed++
                 }
                 _addons.value = AddonsState.Done(
-                    "Installed: $installed  ·  Already present: $skipped"
+                    "Installed: $installed  ·  Updated: $updated  ·  Up to date: $skipped"
                 )
                 scanAddonsStatus()
             } catch (t: Throwable) {
@@ -366,11 +379,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun installIntent(): Intent? {
         val out = outputApk() ?: return null
+        return installIntentFor(out)
+    }
+
+    fun installIntentFor(apk: File): Intent? {
+        if (!apk.exists()) return null
         val context = getApplication<Application>()
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
-            out,
+            apk,
         )
         return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
@@ -382,6 +400,96 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun reset() {
         _patch.value = PatchUiState.Idle
         lastReport = null
+    }
+
+    // ------------------------------------------------------------------ updater
+    // Checks the crashview releases for a newer patcher APK and downloads it
+    // with progress (downloaded/total/speed), then hands it to the package
+    // installer automatically when done.
+
+    sealed interface AppUpdate {
+        data object Idle : AppUpdate
+        data object Checking : AppUpdate
+        data class Available(
+            val tag: String,
+            val notes: String,
+            val size: Long,
+            val url: String,
+        ) : AppUpdate
+        data class Downloading(
+            val tag: String,
+            val downloaded: Long,
+            val total: Long,
+            val bytesPerSec: Long,
+        ) : AppUpdate
+        data class Downloaded(val tag: String, val file: File) : AppUpdate
+        data class Failed(val message: String) : AppUpdate
+    }
+
+    private val _appUpdate = MutableStateFlow<AppUpdate>(AppUpdate.Idle)
+    val appUpdate: StateFlow<AppUpdate> = _appUpdate.asStateFlow()
+
+    private val updatePrefs by lazy {
+        getApplication<Application>().getSharedPreferences("updater_prefs", Context.MODE_PRIVATE)
+    }
+
+    fun checkAppUpdate(silent: Boolean = true) {
+        val cur = _appUpdate.value
+        if (cur is AppUpdate.Checking || cur is AppUpdate.Downloading) return
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!silent) _appUpdate.value = AppUpdate.Checking
+            try {
+                val rel = ReleaseRepository.latest(APP_RELEASE_REPO)
+                val asset = rel.assets.firstOrNull { it.name.endsWith(".apk") }
+                if (rel.tag_name.isEmpty() || asset == null) {
+                    _appUpdate.value = AppUpdate.Idle
+                    return@launch
+                }
+                val known = updatePrefs.getString("known_tag", null)
+                _appUpdate.value = if (rel.tag_name != known) {
+                    AppUpdate.Available(rel.tag_name, rel.body.orEmpty(), asset.size, asset.browser_download_url)
+                } else {
+                    AppUpdate.Idle
+                }
+            } catch (t: Throwable) {
+                _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.Failed(t.message ?: "Update check failed")
+            }
+        }
+    }
+
+    fun downloadAppUpdate() {
+        val cur = _appUpdate.value as? AppUpdate.Available ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dest = File(workDir, "update.apk")
+                if (dest.exists()) dest.delete()
+                val t0 = SystemClock.elapsedRealtime()
+                ReleaseRepository.downloadUrl(cur.url, dest, cur.size) { done, total ->
+                    val dt = (SystemClock.elapsedRealtime() - t0).coerceAtLeast(1L)
+                    _appUpdate.value = AppUpdate.Downloading(cur.tag, done, total, done * 1000L / dt)
+                }
+                updatePrefs.edit().putString("known_tag", cur.tag).apply()
+                _appUpdate.value = AppUpdate.Downloaded(cur.tag, dest)
+            } catch (t: Throwable) {
+                _appUpdate.value = AppUpdate.Failed(t.message ?: "Download failed")
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        (_appUpdate.value as? AppUpdate.Available)?.let {
+            updatePrefs.edit().putString("known_tag", it.tag).apply()
+        }
+        _appUpdate.value = AppUpdate.Idle
+    }
+
+    fun consumeDownloaded() {
+        _appUpdate.value = AppUpdate.Idle
+    }
+
+    companion object {
+        /** Releases (tags + patcher APK) are published here by CI. */
+        const val APP_RELEASE_REPO = "berkchy/cs16client-crashview"
     }
 
     /**
@@ -676,6 +784,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val path: String,
         val expected: Boolean,
         val installed: Boolean,
+        val outdated: Boolean = false,
     )
 
     private val _addonFiles = MutableStateFlow<List<AddonFileStatus>>(emptyList())
@@ -706,7 +815,25 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val result = mutableListOf<AddonFileStatus>()
             for (target in expected.sorted()) {
                 val file = File(gameDir, target)
-                result.add(AddonFileStatus(target, expected = true, installed = file.exists()))
+                if (!file.exists()) {
+                    result.add(AddonFileStatus(target, expected = true, installed = false))
+                    continue
+                }
+                // Byte-level compare: different size or different content (or a
+                // newer bundle copy) means the installed file is outdated and
+                // must be replaced on install.
+                var outdated = false
+                try {
+                    val entry = bundle.manifest.entries.firstOrNull { it.target == target }
+                    val content = entry?.let { bundle.resolveEntry(it) }
+                    if (content != null) {
+                        outdated = content.size.toLong() != file.length() ||
+                            !content.contentEquals(file.readBytes())
+                    }
+                } catch (_: Throwable) {
+                    outdated = false
+                }
+                result.add(AddonFileStatus(target, expected = true, installed = true, outdated = outdated))
             }
             _addonFiles.value = result
         }

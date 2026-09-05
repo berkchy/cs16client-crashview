@@ -144,6 +144,24 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
+        SectionHeader("APP UPDATE")
+        AppCard {
+            Text(
+                "Check GitHub releases for a newer patcher APK. If one is found, " +
+                    "a popup offers download with progress and automatic install.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(
+                text = "Check for updates",
+                onClick = { vm.checkAppUpdate(silent = false) },
+                icon = { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp)) },
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         SectionHeader("GAME FOLDERS")
         GameFoldersCard()
     }

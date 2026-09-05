@@ -63,9 +63,18 @@ object ReleaseRepository {
         asset: Release.Asset,
         dest: File,
         onProgress: (Float) -> Unit = {},
+    ): File = downloadUrl(asset.browser_download_url, dest, asset.size) { done, total ->
+        if (total > 0) onProgress((done.toDouble() / total).toFloat().coerceIn(0f, 1f))
+    }
+
+    suspend fun downloadUrl(
+        url: String,
+        dest: File,
+        knownSize: Long = 0,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): File {
         val req = Request.Builder()
-            .url(asset.browser_download_url)
+            .url(url)
             .header("User-Agent", "cs16-amxx-patcher")
             .header("Accept", "application/octet-stream")
             .build()
@@ -74,7 +83,7 @@ object ReleaseRepository {
             dest.parentFile?.mkdirs()
             val body = resp.body
                 ?: throw IOException("Empty response body")
-            val total = asset.size.takeIf { it > 0 }
+            val total = knownSize.takeIf { it > 0 }
                 ?: body.contentLength().takeIf { it > 0 }
                 ?: 0L
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -86,9 +95,7 @@ object ReleaseRepository {
                         if (n < 0) break
                         output.write(buffer, 0, n)
                         read += n
-                        if (total > 0) {
-                            onProgress((read.toDouble() / total).toFloat().coerceIn(0f, 1f))
-                        }
+                        onProgress(read, total)
                     }
                 }
             }

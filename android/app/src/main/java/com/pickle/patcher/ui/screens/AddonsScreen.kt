@@ -59,8 +59,10 @@ fun AddonsScreen(vm: PatcherViewModel) {
     val installPath by vm.installPath.collectAsState()
 
     val missing = addonFiles.count { !it.installed }
+    val outdated = addonFiles.count { it.installed && it.outdated }
+    val stale = missing + outdated
     val total = addonFiles.size
-    val installed = addonFiles.count { it.installed }
+    val installed = addonFiles.count { it.installed && !it.outdated }
 
     LazyColumn(
         modifier = Modifier
@@ -121,16 +123,17 @@ fun AddonsScreen(vm: PatcherViewModel) {
                         StatPill("Total", "$total")
                         StatPill("Installed", "$installed", accent = SuccessGreen)
                         StatPill("Missing", "$missing", accent = if (missing > 0) AlertRed else SuccessGreen)
+                        StatPill("Outdated", "$outdated", accent = if (outdated > 0) AlertRed else SuccessGreen)
                     }
                 }
             }
         }
 
-        if (total > 0 && missing > 0) {
+        if (total > 0 && (missing > 0 || outdated > 0)) {
             item {
-                SectionHeader("MISSING FILES")
+                SectionHeader("MISSING / OUTDATED FILES")
                 AppCard {
-                    addonFiles.filter { !it.installed }.forEach { file ->
+                    addonFiles.filter { !it.installed || it.outdated }.forEach { file ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -144,14 +147,20 @@ fun AddonsScreen(vm: PatcherViewModel) {
                                 modifier = Modifier.size(14.dp),
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(
-                                file.path.removePrefix("addons/"),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Gray40,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    file.path.removePrefix("addons/"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray40,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    if (!file.installed) "missing" else "outdated — will be replaced",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AlertRed,
+                                )
+                            }
                         }
                     }
                 }
@@ -196,15 +205,15 @@ fun AddonsScreen(vm: PatcherViewModel) {
                     ActivityResultContracts.StartActivityForResult()
                 ) { result ->
                     if (result.resultCode == android.app.Activity.RESULT_OK) {
-                        if (missing > 0) vm.installAddonsFromBundle()
+                        if (stale > 0) vm.installAddonsFromBundle()
                     }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PrimaryButton(
-                        text = if (missing > 0) "Install Missing" else "Rescan",
+                        text = if (stale > 0) "Install / Update ($stale)" else "Rescan",
                         onClick = {
-                            if (missing > 0) {
+                            if (stale > 0) {
                                 val hasPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                     Environment.isExternalStorageManager()
                                 } else true
@@ -223,7 +232,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
                         },
                         icon = {
                             Icon(
-                                if (missing > 0) Icons.Filled.FolderOpen else Icons.Filled.Refresh,
+                                if (stale > 0) Icons.Filled.FolderOpen else Icons.Filled.Refresh,
                                 null,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -254,19 +263,28 @@ fun AddonsScreen(vm: PatcherViewModel) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (file.installed) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                            if (file.installed && !file.outdated) Icons.Filled.CheckCircle else Icons.Filled.Error,
                             contentDescription = null,
-                            tint = if (file.installed) SuccessGreen else AlertRed,
+                            tint = if (file.installed && !file.outdated) SuccessGreen else AlertRed,
                             modifier = Modifier.size(14.dp),
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            file.path.removePrefix("addons/"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (file.installed) White else Gray40,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                file.path.removePrefix("addons/"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (file.installed && !file.outdated) White else Gray40,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (file.installed && file.outdated) {
+                                Text(
+                                    "outdated",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AlertRed,
+                                )
+                            }
+                        }
                     }
                 }
             }
