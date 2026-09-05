@@ -372,30 +372,5 @@
 			}
 		}
 	}
-
-	"*" // Build 8684 - Windows
-	{
-		"CRC"
-		{
-			"server"
-			{
-				"windows" "6BF63A24" // cstrike/dlls/mp.dll
-				"windows" "BD938A62" // czero/dlls/mp.dll
-			}
-		}
-
-		"Offsets"
-		{
-			"UseBotArgs"
-			{
-				"windows"   "2" // Used with pfnClientCommand base address
-			}
-
-			"BotArgs"
-			{
-				"windows"   "22"
-			}
-		}
-	}
 }
 

@@ -42,8 +42,8 @@
 						"type"      "integer"
 
 						"windows"   "172"
-						"linux"     "188"
-						"mac"       "188"
+						"linux"     "248" // ReGameDLLcs arm64: measured from libcs_android_arm64.so (id compares at +248)
+						"mac"       "248"
 					}
 				}
 			}
