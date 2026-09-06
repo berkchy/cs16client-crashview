@@ -139,6 +139,16 @@ fun PatcherApp(vm: PatcherViewModel) {
         topBar = {
             TopAppBar(
                 title = { Text("CS16-Meta Patcher", style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    if (currentRoute == "plugins") {
+                        IconButton(onClick = { nav.popBackStack() }) {
+                            Icon(
+                                androidx.compose.material.icons.automirrored.filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    }
+                },
                 actions = { OverflowMenu(vm, nav) },
             )
         },

@@ -33,9 +33,16 @@ import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.White
 
+/** " ; zombie_plague40.amxx debug " -> "zombie_plague40" (no ';', no args, no .amxx). */
+private fun displayPluginName(raw: String): String {
+    var s = raw.trim()
+    if (s.startsWith(";")) s = s.substring(1).trim()
+    val first = s.split(Regex("\\s+")).firstOrNull().orEmpty()
+    return first.removeSuffix(".amxx").ifBlank { "(blank)" }
+}
+
 @Composable
-fun PluginsScreen(vm: PatcherViewModel) {
-    val inis by vm.pluginInis.collectAsState()
+fun PluginsScreen(vm: PatcherViewModel) {    val inis by vm.pluginInis.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { vm.loadPluginInis() }
@@ -99,7 +106,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                line.text.ifBlank { "(blank)" },
+                                displayPluginName(line.text),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (!line.editable) Gray40 else White,
                                 maxLines = 1,
