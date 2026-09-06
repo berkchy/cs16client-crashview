@@ -650,6 +650,12 @@ int CHud::MsgFunc_SetFOV(const char *pszName,  int iSize, void *pbuf)
 	int newfov = reader.ReadByte();
 	int def_fov = default_fov->value;
 
+	// CS servers reset FOV by sending 90 explicitly. Treat that as
+	// "back to default" so a custom default_fov (e.g. wider mobile FOV)
+	// actually takes effect. Real zooms (anything < 90) pass through.
+	if( newfov == 90 )
+		newfov = 0;
+
 	g_lastFOV = newfov;
 	m_iFOV = newfov ? newfov : def_fov;
 
