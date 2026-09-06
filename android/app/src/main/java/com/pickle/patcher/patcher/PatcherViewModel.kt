@@ -437,20 +437,23 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         getApplication<Application>().getSharedPreferences("updater_prefs", Context.MODE_PRIVATE)
     }
 
+    private var nextPollAt: Long = 0L
+
     fun checkAppUpdate(silent: Boolean = true) {
         val cur = _appUpdate.value
         if (cur is AppUpdate.Checking || cur is AppUpdate.Downloading || cur is AppUpdate.Downloaded) return
+        if (silent && SystemClock.elapsedRealtime() < nextPollAt) return
         viewModelScope.launch(Dispatchers.IO) {
             if (!silent) _appUpdate.value = AppUpdate.Checking
             try {
-                val rel = ReleaseRepository.latest(APP_RELEASE_REPO)
-                val asset = rel.assets.firstOrNull { it.name.endsWith(".apk") }
-                if (rel.tag_name.isEmpty() || asset == null) {
-                    _appUpdate.value = AppUpdate.Idle
+                // Quota-free tag resolve (api.github.com is 60 req/hour shared).
+                val tag = ReleaseRepository.latestTagRedirect(APP_RELEASE_REPO)
+                if (tag.isNullOrEmpty()) {
+                    nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
+                    if (!silent) _appUpdate.value = AppUpdate.Failed("Update check failed (network).")
+                    else _appUpdate.value = AppUpdate.Idle
                     return@launch
                 }
-                // Primary: compare against our own version (CI stamps the tag
-                // into versionName). Fallback: last dismissed/seen tag.
                 val ours = try {
                     getApplication<Application>().packageManager
                         .getPackageInfo(getApplication<Application>().packageName, 0).versionName
@@ -458,14 +461,32 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     null
                 }
                 val known = updatePrefs.getString("known_tag", null)
-                val isNew = rel.tag_name != known &&
-                    (ours == null || !ours.startsWith("v") || rel.tag_name != ours)
-                _appUpdate.value = if (isNew) {
-                    AppUpdate.Available(rel.tag_name, rel.body.orEmpty(), asset.size, asset.browser_download_url)
-                } else {
-                    AppUpdate.Idle
+                val isNew = tag != known &&
+                    (ours == null || !ours.startsWith("v") || tag != ours)
+                if (!isNew) {
+                    _appUpdate.value = AppUpdate.Idle
+                    return@launch
                 }
+                // Tag is new: one API call for notes + exact asset (rare).
+                // If the API is rate-limited, fall back to the deterministic URL.
+                var notes = ""
+                var url = "https://github.com/$APP_RELEASE_REPO/releases/download/$tag/CS16-Meta-Patcher-release.apk"
+                var size = 0L
+                try {
+                    val rel = ReleaseRepository.latest(APP_RELEASE_REPO)
+                    if (rel.tag_name == tag) {
+                        notes = rel.body.orEmpty()
+                        rel.assets.firstOrNull { it.name.endsWith(".apk") }?.let {
+                            url = it.browser_download_url
+                            size = it.size
+                        }
+                    }
+                } catch (_: Throwable) {
+                    nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
+                }
+                _appUpdate.value = AppUpdate.Available(tag, notes, size, url)
             } catch (t: Throwable) {
+                nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.Failed(t.message ?: "Update check failed")
             }
         }

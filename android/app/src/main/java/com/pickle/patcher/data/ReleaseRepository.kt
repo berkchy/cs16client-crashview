@@ -47,6 +47,35 @@ object ReleaseRepository {
         }
     }
 
+    private val webClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
+
+    /**
+     * Resolves the latest release tag via the github.com redirect
+     * (…/releases/latest -> …/releases/tag/vX). Costs no API quota,
+     * unlike /releases/latest on api.github.com (60 req/hour shared).
+     * Returns null on any failure (caller backs off).
+     */
+    suspend fun latestTagRedirect(repo: String): String? {
+        return try {
+            val req = Request.Builder()
+                .url("https://github.com/$repo/releases/latest")
+                .header("User-Agent", "cs16-amxx-patcher")
+                .head()
+                .build()
+            webClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val finalUrl = resp.request.url.toString()
+                finalUrl.substringAfterLast("/releases/tag/", "").ifBlank { null }
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     suspend fun latest(repo: String): Release {
         val req = Request.Builder()
             .url("https://api.github.com/repos/$repo/releases/latest")

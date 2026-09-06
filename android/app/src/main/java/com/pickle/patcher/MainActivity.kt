@@ -377,7 +377,8 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     Text(
-                        "Size: ${formatBytes(state.size)}",
+                        if (state.size > 0) "Size: ${formatBytes(state.size)}"
+                        else "Size: varies with build",
                         style = MaterialTheme.typography.bodySmall,
                         color = Gray40,
                     )
