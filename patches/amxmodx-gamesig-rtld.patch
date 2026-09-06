@@ -1,0 +1,33 @@
+diff --git a/amxmodx/CGameConfigs.cpp b/amxmodx/CGameConfigs.cpp
+--- a/amxmodx/CGameConfigs.cpp
++++ b/amxmodx/CGameConfigs.cpp
+@@ -696,6 +696,29 @@ SMCResult CGameConfig::ReadSMC_LeavingSection(const SMCStates *states)
+ 					{
+ 						AMXXLOG_Error("Unable to find library \"%s\" in memory (gameconf \"%s\")", TempSig.library, m_File);
+ 					}
++
++					/* ANDROID/Xash fallback: MDLL_Spawn (used to locate the
++					 * server lib) can live in metamod/engine instead of the
++					 * game DLL, so the handle above may point at the wrong
++					 * library and ResolveSymbol finds nothing. Try the
++					 * global scope, then the already-loaded game lib. */
++					if (!finalAddress)
++					{
++						finalAddress = dlsym(RTLD_DEFAULT, &TempSig.signature[1]);
++					}
++					if (!finalAddress)
++					{
++						void *hgame = dlopen("libcs_android_arm64.so", RTLD_NOW | RTLD_NOLOAD);
++						if (!hgame)
++						{
++							hgame = dlopen("libcs.so", RTLD_NOW | RTLD_NOLOAD);
++						}
++						if (hgame)
++						{
++							finalAddress = g_MemUtils.ResolveSymbol(hgame, &TempSig.signature[1]);
++							dlclose(hgame);
++						}
++					}
+ #endif
+ 				}
+ 
