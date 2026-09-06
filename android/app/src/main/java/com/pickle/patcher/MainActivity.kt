@@ -15,9 +15,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Extensionimport androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Extension
@@ -143,7 +143,7 @@ fun PatcherApp(vm: PatcherViewModel) {
                     if (currentRoute == "plugins") {
                         IconButton(onClick = { nav.popBackStack() }) {
                             Icon(
-                                androidx.compose.material.icons.automirrored.filled.ArrowBack,
+                                Icons.Filled.ArrowBack,
                                 contentDescription = "Back",
                             )
                         }
