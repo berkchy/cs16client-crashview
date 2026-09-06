@@ -17,8 +17,11 @@ env:
   BUNDLE_VERSION: ${{ github.event.inputs.version || '1.10.0' }}
   ANDROID_DIR: android
 
+# NOTE: intentionally a SINGLE job. The old 3-job layout passed ~200 MB
+# through Actions artifacts on every tag and hit the repo artifact quota.
+# All stages run sequentially anyway (needs:), so nothing is lost.
 jobs:
-  amxx-bundle:
+  build-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -29,6 +32,12 @@ jobs:
         run: |
           git fetch origin amxx-addons
           git checkout origin/amxx-addons -- addons/
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Set up Android SDK/NDK tooling
         uses: android-actions/setup-android@v3
@@ -65,31 +74,6 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           zip -r amxx-addons.zip addons/ -x '*.git*'
 
-      - name: Upload bundle artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-bundles
-          path: |
-            amxx-bundle.zip
-            amxx-plugins.zip
-            amxx-addons.zip
-
-  app-apk:
-    needs: amxx-bundle
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android SDK platform & build tools
         shell: bash
         run: |
@@ -119,34 +103,29 @@ jobs:
           cp android/debug/debug_key.pem android/app/src/main/assets/keystore/debug_key.pem
           cp android/debug/debug_cert.pem android/app/src/main/assets/keystore/debug_cert.pem
 
-      - name: Download release bundles (for app fallback)
-        uses: actions/download-artifact@v4
-        with:
-          name: release-bundles
-          path: bundles
-
       - name: Embed bundle into app assets (offline fallback)
         shell: bash
         run: |
           mkdir -p android/app/src/main/assets/bundle
-          cp bundles/amxx-bundle.zip android/app/src/main/assets/bundle/bundle.zip
+          cp "$GITHUB_WORKSPACE/amxx-bundle.zip" android/app/src/main/assets/bundle/bundle.zip
 
       - name: Embed amxxpc + modules as native libs (nativeLibraryDir)
         shell: bash
         run: |
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          BZIP="$GITHUB_WORKSPACE/amxx-bundle.zip"
           # amxxpc compiler
-          unzip -p bundles/amxx-bundle.zip compiler/amxxpc > android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
-          unzip -p bundles/amxx-bundle.zip compiler/amxxpc32.so > android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
+          unzip -p "$BZIP" compiler/amxxpc > android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+          unzip -p "$BZIP" compiler/amxxpc32.so > android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
           chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
           # AMXX modules — CS16Client loads them via nativeLibraryDir dlopen
-          for so in $(unzip -l bundles/amxx-bundle.zip | grep 'lib/arm64-v8a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
+          for so in $(unzip -l "$BZIP" | grep 'lib/arm64-v8a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
             name=$(basename "$so")
-            unzip -p bundles/amxx-bundle.zip "$so" > "android/app/src/main/jniLibs/arm64-v8a/$name"
+            unzip -p "$BZIP" "$so" > "android/app/src/main/jniLibs/arm64-v8a/$name"
             chmod +x "android/app/src/main/jniLibs/arm64-v8a/$name"
           done
           # core lib
-          unzip -p bundles/amxx-bundle.zip lib/arm64-v8a/libamxmodx.so > android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
+          unzip -p "$BZIP" lib/arm64-v8a/libamxmodx.so > android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
           chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
           ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
@@ -156,28 +135,13 @@ jobs:
           APP_VERSION_NAME: ${{ github.ref_name }}
         run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
 
-      - name: Upload app APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: patcher-apk
-          path: android/app/build/outputs/apk/release/*.apk
-
-  publish:
-    needs: [amxx-bundle, app-apk]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download everything
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-
       - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-assets/release-bundles/amxx-bundle.zip
-            release-assets/release-bundles/amxx-plugins.zip
-            release-assets/release-bundles/amxx-addons.zip
-            release-assets/patcher-apk/*.apk
+            amxx-bundle.zip
+            amxx-plugins.zip
+            amxx-addons.zip
+            android/app/build/outputs/apk/release/*.apk
           generate_release_notes: true
