@@ -22,15 +22,32 @@ import java.util.zip.Deflater
 object ZipRepacker {
 
     /**
-     * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — `PostThink`/`ItemPostFrame`
-     * dereference `m_pActiveItem` after a naked `cbz` (null-only) check, so a small garbage value
-     * (e.g. `0x1`) slips through and segfaults (fault addr `0x5`). We turn the `cbz x8, skip` into
-     * `tbz x8, #32, skip` (skip the whole block for pointers < 4 GB). Single byte at file +0x240fcb.
+     * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — `PostThink`/`PreThink`/`ItemPostFrame`
+     / `UpdateClientData` dereference weapon-slot pointers (`m_pActiveItem` / `m_rgpPlayerItems`) after
+     * naked `cbz` (null-only) checks, so a small garbage value (e.g. `0x1`, `0x3`) slips through and
+     * segfaults (fault addr `0x5`, `0x9`). Each `cbz xRt, skip` is turned into `tbz xRt, #32, skip`
+     * (skip the whole block / skip to next slot for pointers < 4 GB). 13 patch sites total:
+     * 6 × PostThink slot-entry + 1 × PostThink m_pActiveItem + 6 × UpdateClientData slot-entry.
+     * Single byte per site: opcode byte 0xB4 -> 0xB6.
      */
     val LIBCS_ENTRY = "lib/arm64-v8a/libcs_android_arm64.so"
-    private val LIBCS_INSN_OFF = 0x240fc8
-    private val LIBCS_CBZ = byteArrayOf(0xA8.toByte(), 0x04, 0x00, 0xB4.toByte())     // cbz x8, +0x94
-    private val LIBCS_PATCHED = byteArrayOf(0xA8.toByte(), 0x04, 0x00, 0xB6.toByte()) // tbz x8, #32, +0x94
+
+    /** (instruction file-offset, expected register bits) for every `cbz` that guards a weapon pointer. */
+    private val LIBCS_PATCHES = listOf(
+        0x240be4 to 20,   // PostThink slot 0 (x20)
+        0x240c74 to 20,   // slot 1
+        0x240d04 to 20,   // slot 2
+        0x240d94 to 20,   // slot 3
+        0x240e24 to 20,   // slot 4
+        0x240eb4 to 20,   // slot 5
+        0x240fc8 to 8,    // PostThink m_pActiveItem (x8)
+        0x247bf8 to 0,    // UpdateClientData slot 0 (x0)
+        0x247c10 to 0,    // slot 1
+        0x247c28 to 0,    // slot 2
+        0x247c40 to 0,    // slot 3
+        0x247c58 to 0,    // slot 4
+        0x247c70 to 0,    // slot 5
+    )
 
     data class Result(
         val output: File,
@@ -287,16 +304,20 @@ object ZipRepacker {
     }
 
     /**
-     * Apply the ReGameDLL PostThink active-item guard to [content] (the decompressed libcs bytes).
-     * Returns the patched bytes, or null when the expected instruction is already absent
-     * (different build / already fixed) so we leave it untouched.
+     * Apply the ReGameDLL weapon-slot guard to [content] (the decompressed libcs bytes).
+     * Returns the patched bytes, or null when at least one expected instruction is absent
+     * (different build / already fixed) so we leave it entirely untouched.
      */
     private fun patchLibCs(content: ByteArray): ByteArray? {
-        if (content.size < LIBCS_INSN_OFF + 4) return null
-        val cur = byteArrayOf(content[LIBCS_INSN_OFF], content[LIBCS_INSN_OFF + 1], content[LIBCS_INSN_OFF + 2], content[LIBCS_INSN_OFF + 3])
-        if (!cur.contentEquals(LIBCS_CBZ)) return null
         val out = content.copyOf()
-        out[LIBCS_INSN_OFF + 3] = LIBCS_PATCHED[3]
+        for ((off, rt) in LIBCS_PATCHES) {
+            if (out.size < off + 4) return null
+            // verify cbz encoding: opcode high nibble 0xB4, register bits match
+            val high = out[off + 3].toInt() and 0xFF
+            val reg = out[off].toInt() and 0x1F
+            if (high != 0xB4 || reg != rt) return null
+            out[off + 3] = 0xB6.toByte()   // cbz -> tbz #32
+        }
         return out
     }
 
