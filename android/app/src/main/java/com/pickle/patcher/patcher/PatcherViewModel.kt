@@ -527,7 +527,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------- plugins editor
     // Reads plugins-*.ini files and toggles lines with ';' (AMXX skips those).
 
-    data class PluginLine(val text: String, val enabled: Boolean, val editable: Boolean)
+    data class PluginLine(val text: String, val enabled: Boolean, val editable: Boolean, val isPlugin: Boolean)
     data class PluginIniFile(val name: String, val file: File, val lines: List<PluginLine>)
 
     private val _pluginInis = MutableStateFlow<List<PluginIniFile>>(emptyList())
@@ -545,12 +545,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     file = f,
                     lines = f.readLines().map { line ->
                         val t = line.trim()
-                        if (t.isEmpty() || t.startsWith(";") && t.substring(1).trim().isEmpty()) {
-                            PluginLine(line, enabled = true, editable = false)
-                        } else if (t.startsWith(";")) {
-                            PluginLine(line, enabled = false, editable = true)
+                        val stripped = t.removePrefix(";").trim()
+                        val first = stripped.split(Regex("\\s+")).firstOrNull().orEmpty()
+                        if (first.endsWith(".amxx", ignoreCase = true)) {
+                            // Real plugin line (enabled) or disabled one (';').
+                            PluginLine(line, enabled = !t.startsWith(";"), editable = true, isPlugin = true)
                         } else {
-                            PluginLine(line, enabled = true, editable = true)
+                            // Blank line, comment or header — not a plugin, never listed.
+                            PluginLine(line, enabled = true, editable = false, isPlugin = false)
                         }
                     }
                 )

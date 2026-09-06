@@ -93,7 +93,8 @@ fun PluginsScreen(vm: PatcherViewModel) {    val inis by vm.pluginInis.collectAs
                 }
             }
         } else {
-            items(current.lines.indices.toList()) { idx ->
+            val pluginIdx = current.lines.indices.filter { current.lines[it].isPlugin }
+            items(pluginIdx) { idx ->
                 val line = current.lines[idx]
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -120,7 +121,7 @@ fun PluginsScreen(vm: PatcherViewModel) {    val inis by vm.pluginInis.collectAs
                                 )
                             }
                         }
-                        if (line.editable && current != null) {
+                        if (line.editable) {
                             Switch(
                                 checked = line.enabled,
                                 onCheckedChange = { vm.togglePluginLine(current.name, idx) },
