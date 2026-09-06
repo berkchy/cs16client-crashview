@@ -423,6 +423,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val bytesPerSec: Long,
         ) : AppUpdate
         data class Downloaded(val tag: String, val file: File) : AppUpdate
+        data class UpToDate(val tag: String) : AppUpdate
         data class Failed(val message: String) : AppUpdate
     }
 
@@ -461,10 +462,12 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     null
                 }
                 val known = updatePrefs.getString("known_tag", null)
-                val isNew = tag != known &&
+                // Manual checks bypass the dismissed-tag memory so the popup
+                // can be brought back from the menu any time.
+                val isNew = (tag != known || !silent) &&
                     (ours == null || !ours.startsWith("v") || tag != ours)
                 if (!isNew) {
-                    _appUpdate.value = AppUpdate.Idle
+                    _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.UpToDate(tag)
                     return@launch
                 }
                 // Tag is new: one API call for notes + exact asset (rare).

@@ -217,6 +217,7 @@ fun PatcherApp(vm: PatcherViewModel) {
 
     val showUpdateDialog = update is PatcherViewModel.AppUpdate.Available ||
         update is PatcherViewModel.AppUpdate.Downloading ||
+        update is PatcherViewModel.AppUpdate.UpToDate ||
         update is PatcherViewModel.AppUpdate.Failed
     if (showUpdateDialog) {
         UpdateDialog(vm, update)
@@ -356,6 +357,7 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                 when (state) {
                     is PatcherViewModel.AppUpdate.Available -> "New update available ${state.tag}"
                     is PatcherViewModel.AppUpdate.Downloading -> "Downloading ${state.tag}…"
+                    is PatcherViewModel.AppUpdate.UpToDate -> "Up to date"
                     is PatcherViewModel.AppUpdate.Failed -> "Update failed"
                     else -> "Update"
                 },
@@ -401,6 +403,13 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "Install starts automatically when the download finishes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray40,
+                    )
+                }
+                if (state is PatcherViewModel.AppUpdate.UpToDate) {
+                    Text(
+                        "You have the latest version (${state.tag}).",
                         style = MaterialTheme.typography.bodySmall,
                         color = Gray40,
                     )
