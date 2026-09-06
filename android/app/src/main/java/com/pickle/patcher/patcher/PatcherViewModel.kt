@@ -794,17 +794,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val process = pb.start()
                 val output = process.inputStream.bufferedReader().use { it.readText() }
                 val exit = process.waitFor()
+                // Show only amxxpc's own output (no exec wrapper lines).
+                val body = output.trim().ifEmpty {
+                    if (exit == 0) "Done." else "Compile failed."
+                }
                 val log = buildString {
-                    append("$ ${cmd.joinToString(" ")}\n")
-                    append(output.trim())
-                    if (output.trim().isNotEmpty()) append("\n")
-                    append("exit=$exit\n")
+                    append(body)
                     val out = File(compiledDir, f.nameWithoutExtension + ".amxx")
-                    if (exit == 0 && out.exists()) {
-                        append("OK: ${compiledDir.name}/${out.name} (${out.length()} bytes)\n")
-                        append("in: ${compiledDir.absolutePath}")
-                    } else {
-                        append("Compile failed.")
+                    if (exit != 0 || !out.exists()) {
+                        append("\nCompile failed.")
                     }
                 }
                 _compile.value =
