@@ -25,7 +25,14 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -48,6 +55,7 @@ import androidx.navigation.compose.rememberNavController
 import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.screens.AddonsScreen
 import com.pickle.patcher.ui.screens.CompilerScreen
+import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.theme.AmxxPatcherTheme
@@ -87,6 +95,7 @@ private enum class Dest(
     Addons("addons", "Addons", Icons.Filled.Extension, Icons.Outlined.Extension),
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatcherApp(vm: PatcherViewModel) {
     val nav = rememberNavController()
@@ -123,6 +132,12 @@ fun PatcherApp(vm: PatcherViewModel) {
     Scaffold(
         containerColor = Black,
         contentColor = White,
+        topBar = {
+            TopAppBar(
+                title = { Text("CS16-Meta Patcher", style = MaterialTheme.typography.titleMedium) },
+                actions = { OverflowMenu(vm, nav) },
+            )
+        },
         bottomBar = {
             Surface(
                 color = Gray90,
@@ -181,6 +196,7 @@ fun PatcherApp(vm: PatcherViewModel) {
             composable(Dest.Patch.route) { PatchScreen(vm) }
             composable(Dest.Compiler.route) { CompilerScreen(vm) }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
+            composable("plugins") { PluginsScreen(vm) }
         }
     }
 
@@ -202,6 +218,117 @@ private fun formatBytes(bytes: Long): String {
 }
 
 private fun formatSpeed(bps: Long): String = "${formatBytes(bps)}/s"
+
+@Composable
+private fun OverflowMenu(
+    vm: PatcherViewModel,
+    nav: androidx.navigation.NavHostController,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    IconButton(onClick = { expanded = true }) {
+        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenuItem(
+            text = { Text("Update check") },
+            onClick = {
+                expanded = false
+                vm.checkAppUpdate(silent = false)
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("Plugins") },
+            onClick = {
+                expanded = false
+                nav.navigate("plugins")
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("Share logs") },
+            onClick = {
+                expanded = false
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    val text = vm.buildLogShareText()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share logs"))
+                    }
+                }
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("Show dismissed update") },
+            onClick = {
+                expanded = false
+                vm.showDismissedUpdate()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("Redownload bundle") },
+            onClick = {
+                expanded = false
+                vm.fetchAndDownloadBundle()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("About") },
+            onClick = {
+                expanded = false
+                showAbout = true
+            },
+        )
+    }
+
+    if (showAbout) {
+        val pm = context.packageManager
+        val version = try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0)).versionName
+            } else {
+                @Suppress("DEPRECATION") pm.getPackageInfo(context.packageName, 0).versionName
+            }
+        } catch (_: Throwable) {
+            "unknown"
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAbout = false },
+            title = { Text("CS16-Meta Patcher") },
+            text = {
+                Column {
+                    Text("Version: $version", style = MaterialTheme.typography.bodySmall, color = Gray40)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Patches and mods CS16Client on Android: AMXX bundle injection, " +
+                            "Pawn compiler, addons manager and crash logs.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray40,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "github.com/berkchy/cs16client-crashview",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray40,
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showAbout = false }) {
+                    Text("Close")
+                }
+            },
+            containerColor = Gray90,
+            titleContentColor = White,
+            textContentColor = White,
+        )
+    }
+}
 
 @Composable
 private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate) {

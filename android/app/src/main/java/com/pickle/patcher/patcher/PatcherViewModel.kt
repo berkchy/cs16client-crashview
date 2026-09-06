@@ -503,6 +503,113 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         _appUpdate.value = AppUpdate.Idle
     }
 
+    // ------------------------------------------------------- plugins editor
+    // Reads plugins-*.ini files and toggles lines with ';' (AMXX skips those).
+
+    data class PluginLine(val text: String, val enabled: Boolean, val editable: Boolean)
+    data class PluginIniFile(val name: String, val file: File, val lines: List<PluginLine>)
+
+    private val _pluginInis = MutableStateFlow<List<PluginIniFile>>(emptyList())
+    val pluginInis: StateFlow<List<PluginIniFile>> = _pluginInis.asStateFlow()
+
+    fun loadPluginInis() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val configs = File(File(_installPath.value), "addons/amxmodx/configs")
+            val files = configs.listFiles { f ->
+                f.isFile && f.name.startsWith("plugins") && f.name.endsWith(".ini")
+            }?.sortedBy { it.name } ?: emptyList()
+            _pluginInis.value = files.map { f ->
+                PluginIniFile(
+                    name = f.name,
+                    file = f,
+                    lines = f.readLines().map { line ->
+                        val t = line.trim()
+                        if (t.isEmpty() || t.startsWith(";") && t.substring(1).trim().isEmpty()) {
+                            PluginLine(line, enabled = true, editable = false)
+                        } else if (t.startsWith(";")) {
+                            PluginLine(line, enabled = false, editable = true)
+                        } else {
+                            PluginLine(line, enabled = true, editable = true)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    fun togglePluginLine(iniName: String, index: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = _pluginInis.value
+            val ini = current.firstOrNull { it.name == iniName } ?: return@launch
+            if (index !in ini.lines.indices) return@launch
+            val line = ini.lines[index]
+            if (!line.editable) return@launch
+            val updated = ini.lines.toMutableList()
+            updated[index] = if (line.enabled) {
+                line.copy(text = ";" + line.text, enabled = false)
+            } else {
+                line.copy(text = line.text.replaceFirst(Regex("^\\s*;"), ""), enabled = true)
+            }
+            try {
+                ini.file.writeText(updated.joinToString("\n") { it.text })
+            } catch (_: Throwable) {
+                return@launch
+            }
+            _pluginInis.value = current.map {
+                if (it.name == iniName) it.copy(lines = updated) else it
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ share logs
+    // Collects versions + log tails into one text for sharing (bug reports).
+
+    suspend fun buildLogShareText(): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+        val pm = getApplication<Application>().packageManager
+        val pkg = getApplication<Application>().packageName
+        val ver = try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                pm.getPackageInfo(pkg, android.content.pm.PackageManager.PackageInfoFlags.of(0)).versionName
+            } else {
+                @Suppress("DEPRECATION") pm.getPackageInfo(pkg, 0).versionName
+            }
+        } catch (_: Throwable) {
+            "unknown"
+        }
+        sb.append("CS16-Meta Patcher ").append(ver).append("\n")
+        sb.append("Game dir: ").append(_installPath.value).append("\n\n")
+        fun tail(f: File, max: Int = 60): List<String> = try {
+            if (!f.exists()) return listOf("(missing: ${f.path})")
+            val lines = f.readLines()
+            lines.takeLast(max)
+        } catch (t: Throwable) {
+            listOf("(unreadable: ${t.message})")
+        }
+        val base = File(_installPath.value)
+        sb.append("=== crash.log ===\n")
+        tail(File(base, "crash.log"), 40).forEach { sb.append(it).append("\n") }
+        sb.append("\n=== engine.log (tail) ===\n")
+        tail(File(File(base, "").parent ?: "", "engine.log"), 40).forEach { sb.append(it).append("\n") }
+        val logDir = File(base, "addons/amxmodx/logs")
+        val latest = logDir.listFiles { f -> f.isFile && f.name.startsWith("L") }
+            ?.maxByOrNull { it.lastModified() }
+        if (latest != null) {
+            sb.append("\n=== ${latest.name} (tail) ===\n")
+            tail(latest, 60).forEach { sb.append(it).append("\n") }
+        }
+        sb.toString()
+    }
+
+    // ------------------------------------------------------ dismissed update
+    // Brings back an update popup the user dismissed with "Later".
+
+    fun showDismissedUpdate() {
+        updatePrefs.edit().remove("known_tag").apply()
+        _pollEnabled.value = true
+        checkAppUpdate(silent = false)
+    }
+
     /**
      * Called from the SAF folder picker. Persists the tree grant, resolves the picked
      * volume folder to a real disk path (MANAGE_EXTERNAL_STORAGE already grants raw
