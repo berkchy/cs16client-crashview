@@ -35,6 +35,7 @@ object ApkPatcher {
         val arscStored: Boolean,
         val arscAligned: Boolean,
         val moduleLibs: List<String>,
+        val patchedLibs: List<String>,
         val verification: ApkSignerTool.Verification?,
         val success: Boolean,
     ) {
@@ -114,6 +115,7 @@ object ApkPatcher {
             arscStored = arscStored,
             arscAligned = arscAligned,
             moduleLibs = modules.sorted(),
+            patchedLibs = repack.patchedLibs,
             verification = ApkSignerTool.Verification(
                 verified = outcome.verified,
                 signerFingerprintSha256 = outcome.signerFingerprintSha256,

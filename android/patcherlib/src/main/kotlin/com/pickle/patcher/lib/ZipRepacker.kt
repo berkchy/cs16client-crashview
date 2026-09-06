@@ -21,6 +21,17 @@ import java.util.zip.Deflater
  */
 object ZipRepacker {
 
+    /**
+     * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — `PostThink`/`ItemPostFrame`
+     * dereference `m_pActiveItem` after a naked `cbz` (null-only) check, so a small garbage value
+     * (e.g. `0x1`) slips through and segfaults (fault addr `0x5`). We turn the `cbz x8, skip` into
+     * `tbz x8, #32, skip` (skip the whole block for pointers < 4 GB). Single byte at file +0x240fcb.
+     */
+    val LIBCS_ENTRY = "lib/arm64-v8a/libcs_android_arm64.so"
+    private val LIBCS_INSN_OFF = 0x240fc8
+    private val LIBCS_CBZ = byteArrayOf(0xA8.toByte(), 0x04, 0x00, 0xB4.toByte())     // cbz x8, +0x94
+    private val LIBCS_PATCHED = byteArrayOf(0xA8.toByte(), 0x04, 0x00, 0xB6.toByte()) // tbz x8, #32, +0x94
+
     data class Result(
         val output: File,
         val kept: List<String>,
@@ -30,6 +41,7 @@ object ZipRepacker {
         val alignedStored: Int,
         val padBytes: Long,
         var bytesWritten: Long = 0,
+        var patchedLibs: List<String> = emptyList(),
     )
 
     fun repack(
@@ -131,7 +143,38 @@ object ZipRepacker {
                 // copy preserved entries (raw bytes, method as-is)
                 val total = keptEntries.size + bundle.manifest.entries.size
                 var done = 0
+                val patchedLibs = ArrayList<String>()
                 for (entry in keptEntries) {
+                    if (entry.name == LIBCS_ENTRY) {
+                        val content = src.readContent(entry)
+                        val patched = patchLibCs(content)
+                        if (patched != null) {
+                            val out = java.io.ByteArrayOutputStream()
+                            val def = Deflater(9, true)
+                            def.setInput(patched)
+                            def.finish()
+                            val chunk = ByteArray(8192)
+                            while (!def.finished()) {
+                                val n = def.deflate(chunk)
+                                out.write(chunk, 0, n)
+                            }
+                            def.end()
+                            val compressed = out.toByteArray()
+                            writeLocalHeader(
+                                name = entry.name,
+                                method = 8,
+                                compressedSize = compressed.size.toLong(),
+                                uncompressedSize = patched.size.toLong(),
+                                crc = crc32(patched),
+                                data = compressed,
+                            )
+                            patchedLibs.add(entry.name)
+                            done++
+                            progress?.invoke(bytesWritten, srcLen)
+                            continue
+                        }
+                    }
+
                     val raw = ByteArray(entry.compressedSize.toInt())
                     src.file.seek(entry.dataOffset)
                     src.file.readFully(raw)
@@ -233,6 +276,7 @@ object ZipRepacker {
                     alignedStored = alignedStored,
                     padBytes = alignPadBytes,
                     bytesWritten = bytesWritten,
+                    patchedLibs = patchedLibs,
                 )
             } finally {
                 raf.close()
@@ -240,6 +284,20 @@ object ZipRepacker {
         } finally {
             src.close()
         }
+    }
+
+    /**
+     * Apply the ReGameDLL PostThink active-item guard to [content] (the decompressed libcs bytes).
+     * Returns the patched bytes, or null when the expected instruction is already absent
+     * (different build / already fixed) so we leave it untouched.
+     */
+    private fun patchLibCs(content: ByteArray): ByteArray? {
+        if (content.size < LIBCS_INSN_OFF + 4) return null
+        val cur = byteArrayOf(content[LIBCS_INSN_OFF], content[LIBCS_INSN_OFF + 1], content[LIBCS_INSN_OFF + 2], content[LIBCS_INSN_OFF + 3])
+        if (!cur.contentEquals(LIBCS_CBZ)) return null
+        val out = content.copyOf()
+        out[LIBCS_INSN_OFF + 3] = LIBCS_PATCHED[3]
+        return out
     }
 
     private fun excludable(name: String, exclude: ExcludeRule): Boolean {

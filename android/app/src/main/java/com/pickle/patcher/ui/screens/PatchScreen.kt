@@ -315,6 +315,7 @@ private fun PatchResult(report: ApkPatcher.PatchReport, onInstall: () -> Unit) {
                     Text(
                         "Output: ${report.signedSizeBytes.mb()}  ·  source ${report.sourceName}\n" +
                             "Added: ${report.addedEntries.size}  ·  kept: ${report.keptCount}  ·  aligned: ${report.alignedStored}\n" +
+                            if (report.patchedLibs.isNotEmpty()) "LibCs: PostThink active-item guard applied\n" else "" +
                             "Signature: ${if (v != null && v.verified) "OK (v1=${v.usedV1} v2=${v.usedV2})" else "NOT VERIFIED"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Gray40,
