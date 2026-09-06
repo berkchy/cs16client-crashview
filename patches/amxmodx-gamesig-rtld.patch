@@ -1,32 +1,125 @@
 diff --git a/amxmodx/CGameConfigs.cpp b/amxmodx/CGameConfigs.cpp
+index 361120d..5a7e05b 100644
 --- a/amxmodx/CGameConfigs.cpp
 +++ b/amxmodx/CGameConfigs.cpp
-@@ -696,6 +696,29 @@ SMCResult CGameConfig::ReadSMC_LeavingSection(const SMCStates *states)
+@@ -676,26 +676,115 @@ SMCResult CGameConfig::ReadSMC_LeavingSection(const SMCStates *states)
+ 					}
+ 
+ #elif defined PLATFORM_POSIX
+-					Dl_info info;
++					Dl_info info = {};
++					const char *dlPath = nullptr;
+ 
+ 					if (dladdr(addressInBase, &info) != 0)
+ 					{
+-						void *handle = dlopen(info.dli_fname, RTLD_NOW);
++						dlPath = info.dli_fname;
++						AMXXLOG_Log("[GAMESIG] dladdr(sig=%s lib=%s) fbase=%p fname=%s", &TempSig.signature[1], TempSig.library, info.dli_fbase, info.dli_fname ? info.dli_fname : "(null)");
++
++						void *handle = info.dli_fname && info.dli_fname[0] ? dlopen(info.dli_fname, RTLD_NOW) : nullptr;
++						if (!handle && info.dli_fname && info.dli_fname[0])
++						{
++							AMXXLOG_Error("[GAMESIG] dlopen(\"%s\") failed: %s", info.dli_fname, dlerror());
++						}
+ 
+ 						if (handle)
+ 						{
+ 							finalAddress = g_MemUtils.ResolveSymbol(handle, &TempSig.signature[1]);
++							AMXXLOG_Log("[GAMESIG] primary dlopen->ResolveSymbol(%s)=%p", &TempSig.signature[1], finalAddress);
+ 							dlclose(handle);
+ 						}
+-						else
+-						{
+-							AMXXLOG_Error("Unable to load library \"%s\" (gameconf \"%s\")", TempSig.library, m_File);
+-						}
+ 					}
+ 					else
  					{
  						AMXXLOG_Error("Unable to find library \"%s\" in memory (gameconf \"%s\")", TempSig.library, m_File);
  					}
 +
-+					/* ANDROID/Xash fallback: MDLL_Spawn (used to locate the
-+					 * server lib) can live in metamod/engine instead of the
-+					 * game DLL, so the handle above may point at the wrong
-+					 * library and ResolveSymbol finds nothing. Try the
-+					 * global scope, then the already-loaded game lib. */
++					/* Android/Xash fallback: try already-loaded handles by several names/paths.
++					 * bionic libcs (libcs_android_arm64.so) is loaded by absolute path from
++					 * the APK; dlopen by SONAME or basename with RTLD_NOLOAD returns the
++					 * already-mapped object without reloading a second copy. */
 +					if (!finalAddress)
 +					{
 +						finalAddress = dlsym(RTLD_DEFAULT, &TempSig.signature[1]);
++						AMXXLOG_Log("[GAMESIG] dlsym(RTLD_DEFAULT, %s)=%p", &TempSig.signature[1], finalAddress);
++					}
++
++					const char *sFallbackLibs[] = {
++						dlPath,
++						"libcs_android_arm64.so",
++						"libcs.so",
++						"libxash.so",
++						"libengine_android_arm64.so",
++					};
++
++					for (size_t fb = 0; fb < (sizeof(sFallbackLibs) / sizeof(sFallbackLibs[0])) && !finalAddress; fb++)
++					{
++						const char *candidate = sFallbackLibs[fb];
++						if (!candidate || !candidate[0])
++						{
++							continue;
++						}
++
++						for (int mode = 0; mode < 2 && !finalAddress; mode++)
++						{
++							int flags = (mode == 0) ? RTLD_NOW : (RTLD_NOW | RTLD_NOLOAD);
++							void *hgame = dlopen(candidate, flags);
++							if (!hgame)
++							{
++								continue;
++							}
++
++							finalAddress = g_MemUtils.ResolveSymbol(hgame, &TempSig.signature[1]);
++							AMXXLOG_Log("[GAMESIG] fallback dlopen(\"%s\",%s) handle=%p ResolveSymbol(%s)=%p",
++								candidate, (mode == 0) ? "NOW" : "NOW|NOLOAD", hgame, &TempSig.signature[1], finalAddress);
++							dlclose(hgame);
++						}
 +					}
 +					if (!finalAddress)
 +					{
-+						void *hgame = dlopen("libcs_android_arm64.so", RTLD_NOW | RTLD_NOLOAD);
-+						if (!hgame)
++						/* Last resort: walk /proc/self/maps and dlsym the symbol in every
++						 * already-loaded shared object whose backing file is dlopen-able. This
++						 * covers libraries dladdr() could not name (memfd/apk-embedded) and
++						 * any other module that happens to export it. */
++						FILE *mapsf = fopen("/proc/self/maps", "r");
++						if (mapsf)
 +						{
-+							hgame = dlopen("libcs.so", RTLD_NOW | RTLD_NOLOAD);
++							char mapline[1024];
++							char lastPath[512] = "";
++							while (fgets(mapline, sizeof(mapline), mapsf))
++							{
++								char mapPath[512] = "";
++								if (sscanf(mapline, "%*s-%*s %*s %*s %*s %511s", mapPath) != 1)
++								{
++									continue;
++								}
++								if (mapPath[0] != '/' || strcmp(mapPath, lastPath) == 0)
++								{
++									continue;
++								}
++								strncopy(lastPath, mapPath, sizeof(lastPath));
++								void *hgame = dlopen(mapPath, RTLD_NOW | RTLD_NOLOAD);
++								if (!hgame)
++								{
++									continue;
++								}
++								finalAddress = g_MemUtils.ResolveSymbol(hgame, &TempSig.signature[1]);
++								if (finalAddress)
++								{
++									AMXXLOG_Log("[GAMESIG] maps-scan dlopen(\"%s\") -> ResolveSymbol(%s)=%p", mapPath, &TempSig.signature[1], finalAddress);
++								}
++								dlclose(hgame);
++							}
++						fclose(mapsf);
 +						}
-+						if (hgame)
-+						{
-+							finalAddress = g_MemUtils.ResolveSymbol(hgame, &TempSig.signature[1]);
-+							dlclose(hgame);
-+						}
++					}
++					if (!finalAddress)
++					{
++						AMXXLOG_Error("[GAMESIG] FAILED sig=%s lib=%s (dladdr fname=%s)", &TempSig.signature[1], TempSig.library, dlPath ? dlPath : "(null)");
 +					}
  #endif
  				}
