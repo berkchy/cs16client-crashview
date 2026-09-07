@@ -23,12 +23,13 @@ object ZipRepacker {
 
     /**
      * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — `PostThink`/`PreThink`/`ItemPostFrame`
-     / `UpdateClientData` dereference weapon-slot pointers (`m_pActiveItem` / `m_rgpPlayerItems`) after
-     * naked `cbz` (null-only) checks, so a small garbage value (e.g. `0x1`, `0x3`) slips through and
-     * segfaults (fault addr `0x5`, `0x9`). Each `cbz xRt, skip` is turned into `tbz xRt, #32, skip`
-     * (skip the whole block / skip to next slot for pointers < 4 GB). 14 patch sites total:
-     * 6 × PostThink slot-entry + 1 × PostThink m_pActiveItem + 6 × UpdateClientData slot-entry
-     * + 1 × UpdateClientData m_pActiveItem.
+     / `UpdateClientData`/`RemoveAllItems` dereference weapon-slot pointers (`m_pActiveItem` /
+     * `m_rgpPlayerItems`) after naked `cbz` (null-only) checks, so a small garbage value (e.g. `0x1`,
+     * `0x3`) slips through and segfaults (fault addr `0x5`, `0x9`). Each `cbz xRt, skip` is turned
+     * into `tbz xRt, #32, skip` (skip the whole block / skip to next slot for pointers < 4 GB).
+     * 15 patch sites total: 6 × PostThink slot-entry + 1 × PostThink m_pActiveItem +
+     * 6 × UpdateClientData slot-entry + 1 × UpdateClientData m_pActiveItem
+     * + 1 × RemoveAllItems slot0 (0x628 ptr, x8).
      * Single byte per site: opcode byte 0xB4 -> 0xB6.
      */
     val LIBCS_ENTRY = "lib/arm64-v8a/libcs_android_arm64.so"
@@ -49,6 +50,7 @@ object ZipRepacker {
         0x247c58 to 0,    // slot 4
         0x247c70 to 0,    // slot 5
         0x247d20 to 0,    // UpdateClientData m_pActiveItem (x0)
+        0x236a84 to 8,    // RemoveAllItems slot0 (0x628 ptr, x8) — fault addr 0x5
     )
 
     data class Result(
