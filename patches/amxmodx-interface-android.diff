@@ -1,11 +1,14 @@
 diff --git a/public/interface_helpers.h b/public/interface_helpers.h
-index 889df93..4bf1c41 100644
+index 889df93..3920be3 100644
 --- a/public/interface_helpers.h
 +++ b/public/interface_helpers.h
-@@ -25,6 +25,30 @@ bool GET_IFACE(const char* library, T*& var, const char* version, bool add_ext =
+@@ -23,7 +23,31 @@ bool GET_IFACE(const char* library, T*& var, const char* version, bool add_ext =
+ 	else
+ 		ke::SafeStrcpy(file, sizeof(file), library);
  
- 	auto lib = ke::SharedLib::Open(file);
- 
+-	auto lib = ke::SharedLib::Open(file);
++	auto lib = ke::RefPtr<ke::SharedLib>(ke::SharedLib::Open(file));
++
 +#if defined(__ANDROID__)
 +	/* Xash3D FWGS on Android loads the game library (libcs_android_arm64.so)
 +	 * by an absolute path inside the APK, so an absolute or relative path from
@@ -29,7 +32,6 @@ index 889df93..4bf1c41 100644
 +		}
 +	}
 +#endif
-+
+ 
  	if (!lib || !lib->valid())
  	{
- 		return false;
