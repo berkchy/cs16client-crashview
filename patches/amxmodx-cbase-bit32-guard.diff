@@ -1,0 +1,29 @@
+diff --git a/public/HLTypeConversion.h b/public/HLTypeConversion.h
+index e376462..0e8569f 100644
+--- a/public/HLTypeConversion.h
++++ b/public/HLTypeConversion.h
+@@ -142,10 +142,24 @@ class HLTypeConversion
+ 
+ 		entvars_t* cbase_to_entvar(void *cbase)
+ 		{
++			/* ReGameDLL/ReHLDS arm64 builds leave small garbage values
++			 * (0x1, 0x3, 0x5, 0x9 ...) in weapon-slot / active-item pointer
++			 * fields instead of NULL. Any genuine 32-bit-region check below
++			 * only makes sense on 64-bit Android: a real object pointer there
++			 * is always > 4 GiB (bit 32 set). Treat a CBase* that lacks bit 32
++			 * as "no entity" instead of dereferencing it and segfaulting
++			 * (fault addr == garbage + m_PevOffset). */
++#if defined(__ANDROID__) && defined(__aarch64__)
++			if (!cbase || (reinterpret_cast<uintptr_t>(cbase) & 0x100000000ULL) == 0)
++			{
++				return nullptr;
++			}
++#else
+ 			if (!cbase)
+ 			{
+ 				return nullptr;
+ 			}
++#endif
+ 
+ 			return get_pdata<entvars_t*>(cbase, m_PevOffset);
+ 		}
