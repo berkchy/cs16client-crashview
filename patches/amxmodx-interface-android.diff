@@ -1,0 +1,35 @@
+diff --git a/public/interface_helpers.h b/public/interface_helpers.h
+index 889df93..4bf1c41 100644
+--- a/public/interface_helpers.h
++++ b/public/interface_helpers.h
+@@ -25,6 +25,30 @@ bool GET_IFACE(const char* library, T*& var, const char* version, bool add_ext =
+ 
+ 	auto lib = ke::SharedLib::Open(file);
+ 
++#if defined(__ANDROID__)
++	/* Xash3D FWGS on Android loads the game library (libcs_android_arm64.so)
++	 * by an absolute path inside the APK, so an absolute or relative path from
++	 * GET_GAME_INFO (e.g. "dlls/libcs_android_arm64.so") commonly cannot be
++	 * dlopen()ed on bionic. Retry with just the basename (SONAME); dlopen()
++	 * resolves it against the already-loaded mapping instead of loading a new
++	 * copy. */
++	if (!lib || !lib->valid())
++	{
++		const char *base = file;
++		for (const char *p = file; *p; p++)
++		{
++			if (*p == '/')
++			{
++				base = p + 1;
++			}
++		}
++		if (base[0])
++		{
++			lib = ke::SharedLib::Open(base);
++		}
++	}
++#endif
++
+ 	if (!lib || !lib->valid())
+ 	{
+ 		return false;

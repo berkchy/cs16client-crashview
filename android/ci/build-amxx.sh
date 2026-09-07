@@ -102,6 +102,7 @@ apply_patch "$PATCHES/amxmodx-amx-hea-adopt.patch"      "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-pcvar-handle-64bit.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-float64-widen.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-gamesig-rtld.patch"       "$SRC/amxmodx"
+apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
