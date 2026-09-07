@@ -22,14 +22,18 @@ import java.util.zip.Deflater
 object ZipRepacker {
 
     /**
-     * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — `PostThink`/`PreThink`/`ItemPostFrame`
-     / `UpdateClientData`/`RemoveAllItems` dereference weapon-slot pointers (`m_pActiveItem` /
-     * `m_rgpPlayerItems`) after naked `cbz` (null-only) checks, so a small garbage value (e.g. `0x1`,
-     * `0x3`) slips through and segfaults (fault addr `0x5`, `0x9`). Each `cbz xRt, skip` is turned
-     * into `tbz xRt, #32, skip` (skip the whole block / skip to next slot for pointers < 4 GB).
-     * 15 patch sites total: 6 × PostThink slot-entry + 1 × PostThink m_pActiveItem +
-     * 6 × UpdateClientData slot-entry + 1 × UpdateClientData m_pActiveItem
-     * + 1 × RemoveAllItems slot0 (0x628 ptr, x8).
+     * ReGameDLL (`libcs`) guard for arm64: upstream ReGameDLL bug — weapon-item slot pointers
+     * (`m_rgpPlayerItems` / `m_pActiveItem`, read from player+0x628 / +0x670..) hold tiny garbage
+     * values (e.g. `0x1`, `0x5`, `0x9`) instead of NULL, so naked `cbz` (null-only) checks pass and
+     * the code derefs `garbage + small_offset` → SIGSEGV (fault addr `0x5`/`0x9`). Each dangerous
+     * `cbz xRt, T` is patched to `tbz xRt, #32, T` (same target): real arm64 object pointers are
+     * always ≥ 4 GiB (bit 32 set), so any sub-4 GiB value is treated as no-entity and the whole
+     * deref block is skipped. The one-byte opcode change `0xB4 -> 0xB6` yields an identical-target
+     * `tbz xRt, #32` for these `cbz` encodings. 21 patch sites total:
+     * 6 × PostThink slot-entry + 1 × PostThink m_pActiveItem + 6 × UpdateClientData slot-entry
+     * + 1 × UpdateClientData m_pActiveItem + 7 × inlined drop-current-weapon (0x628-slot) blocks
+     * in RemoveAllItems / Killed / DetachTank / Disappear / StartObserver / PlayerUse /
+     * ItemPostFrame.
      * Single byte per site: opcode byte 0xB4 -> 0xB6.
      */
     val LIBCS_ENTRY = "lib/arm64-v8a/libcs_android_arm64.so"
@@ -51,6 +55,12 @@ object ZipRepacker {
         0x247c70 to 0,    // slot 5
         0x247d20 to 0,    // UpdateClientData m_pActiveItem (x0)
         0x236a84 to 8,    // RemoveAllItems slot0 (0x628 ptr, x8) — fault addr 0x5
+        0x238500 to 8,    // Killed slot0 (0x628 ptr, x8) — fault addr 0x5
+        0x236eb0 to 8,    // DetachTank slot0 (x8)
+        0x23c240 to 8,    // Disappear slot0 (x8)
+        0x23d2d0 to 8,    // StartObserver slot0 (x8)
+        0x23d75c to 9,    // PlayerUse slot0 (x9)
+        0x241354 to 8,    // ItemPostFrame slot0 (x8)
     )
 
     data class Result(
