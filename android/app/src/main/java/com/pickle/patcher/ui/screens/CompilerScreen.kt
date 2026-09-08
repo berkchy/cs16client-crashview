@@ -7,12 +7,14 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,12 +62,19 @@ fun CompilerScreen(vm: PatcherViewModel) {
     val scripts by vm.scripts.collectAsState()
     val compile by vm.compile.collectAsState()
     val scriptRoot by vm.scriptRoot.collectAsState()
-    var selected by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
     var showPermissionRationale by remember { mutableStateOf(false) }
     val outputRoot by vm.outputRoot.collectAsState()
     var pickForOutput by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+
+    // Scroll the outer column to the compiler output when a compile starts.
+    LaunchedEffect(compile) {
+        if (compile is CompileState.Compiling) {
+            scroll.animateScrollTo(scroll.maxValue)
+        }
+    }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
@@ -100,7 +110,7 @@ fun CompilerScreen(vm: PatcherViewModel) {
         }
     }
 
-    val selectedSource = scripts.firstOrNull { it.path == selected }
+    val selectedSources = scripts.filter { it.path in selected }
 
     Column(
         modifier = Modifier
@@ -211,24 +221,56 @@ fun CompilerScreen(vm: PatcherViewModel) {
             } else if (scripts.isEmpty()) {
                 Text("No .sma files found.", style = MaterialTheme.typography.bodySmall, color = Gray40)
             } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (selected.isEmpty()) "${scripts.size} scripts" else "${selected.size} selected",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (selected.isNotEmpty()) Accent else Gray40,
+                    )
+                    Row {
+                        if (scripts.size > 1) {
+                            GhostButton(text = if (selected.size == scripts.size) "Clear" else "All") {
+                                selected = if (selected.size != scripts.size) scripts.map { it.path }.toSet() else emptySet()
+                            }
+                        }
+                    }
+                }
                 scripts.forEach { s ->
-                    ScriptRow(s, s.path == selected) {
-                        selected = if (s.path == selected) null else s.path
+                    ScriptRow(s, s.path in selected) {
+                        selected = if (s.path in selected) selected - s.path else selected + s.path
                     }
                 }
             }
         }
 
-        selectedSource?.let { src ->
+        if (selectedSources.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             SectionHeader("COMPILE")
             AppCard {
-                Text(src.name, style = MaterialTheme.typography.titleSmall)
-                Text(src.scriptDir, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                Text(
+                    if (selectedSources.size == 1)
+                        selectedSources.first().name
+                    else
+                        "${selectedSources.size} plugins selected",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                if (selectedSources.size > 1) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "All selected plugins will be compiled in order.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray40,
+                    )
+                }
+                Text(selectedSources.first().scriptDir, style = MaterialTheme.typography.bodySmall, color = Gray40)
                 Spacer(Modifier.height(10.dp))
                 PrimaryButton(
-                    text = "Compile",
-                    onClick = { vm.compile(src) },
+                    text = if (selectedSources.size == 1) "Compile" else "Compile All (${selectedSources.size})",
+                    onClick = { vm.compileAll(selectedSources) },
                     enabled = compile !is CompileState.Compiling,
                     icon = { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) },
                 )
@@ -238,6 +280,8 @@ fun CompilerScreen(vm: PatcherViewModel) {
         when (val c = compile) {
             is CompileState.Compiling -> {
                 Spacer(Modifier.height(12.dp))
+                SectionHeader("OUTPUT")
+                LogBox(c.source, busy = true)
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
             }
             is CompileState.Done -> {
@@ -285,10 +329,19 @@ private fun ScriptRow(s: SmaSource, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun LogBox(text: String, error: Boolean = false) {
+private fun LogBox(text: String, error: Boolean = false, busy: Boolean = false) {
+    val scrollState = rememberScrollState()
+    // Keep the log view pinned to its own bottom-out point: kick the scroll to
+    // max on each update so the newest lines stay visible while compiling.
+    LaunchedEffect(text) {
+        scrollState.scrollTo(scrollState.maxValue)
+    }
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = Gray80,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp, max = 240.dp),
     ) {
         Text(
             text,
@@ -297,8 +350,15 @@ private fun LogBox(text: String, error: Boolean = false) {
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
             ),
-            color = if (error) AlertRed else Gray40,
-            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            color = when {
+                busy -> Accent
+                error -> AlertRed
+                else -> Gray40
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .padding(10.dp),
         )
     }
 }

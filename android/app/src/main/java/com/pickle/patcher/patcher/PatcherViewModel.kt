@@ -743,74 +743,100 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Compiles the selected .sma on-device using the amxxpc bundled in the release
+     * Compiles a single .sma on-device using the amxxpc bundled in the release
      * module. The driver + its libpc300 kernel (amxxpc32.so) are extracted from the
      * bundle into the app files dir so no separate install is required. Falls back
      * to an amxxpc sitting next to the script if no bundle compiler is available.
      */
-    fun compile(source: SmaSource) {
+    fun compile(source: SmaSource) = compileAll(listOf(source))
+
+    /**
+     * Compiles every selected .sma in order (multi-compile). The combined output
+     * is shown as one log: a per-file pass/fail header plus amxxpc's own stderr.
+     * If any plugin fails, the whole batch is reported as [CompileState.Failed]
+     * (the log still shows which ones compiled cleanly).
+     */
+    fun compileAll(sources: List<SmaSource>) {
+        if (sources.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
-            _compile.value = CompileState.Compiling(source.name)
-            try {
-                val f = File(source.path)
-                if (!f.exists()) error("Source not found: ${source.name}")
-                val scriptDir = f.parentFile ?: error("Bad source path")
-                val includeDir = File(scriptDir, "include")
-
-                val amxxpc = prepareCompiler(scriptDir) ?: run {
-                    _compile.value = CompileState.Failed(
-                        "Compiler (amxxpc) unavailable.\n" +
-                            "Pick the scripting folder, or install a patch with the embedded compiler first:\n" +
-                            "• bundle compiler: $preparedCompilerPath\n" +
-                            "• next to script: ${File(scriptDir, "amxxpc").absolutePath}"
-                    )
-                    return@launch
+            val total = sources.size
+            val log = StringBuilder()
+            var failed = 0
+            for ((i, source) in sources.withIndex()) {
+                _compile.value = CompileState.Compiling("${source.name} ($i of $total)")
+                val (ok, body) = try {
+                    compileOne(source)
+                } catch (t: Throwable) {
+                    false to (t.message ?: "Compile error")
                 }
-
-                val cmd = mutableListOf(amxxpc.absolutePath)
-                if (includeDir.isDirectory) {
-                    cmd.add("-i${includeDir.absolutePath}")
-                }
-                val compiledDir = _outputRoot.value?.let { File(it) }?.takeIf { it.isDirectory }
-                    ?: File(scriptDir, "compiled")
-                compiledDir.mkdirs()
-                val outPath = File(compiledDir, f.nameWithoutExtension + ".amxx").absolutePath
-                cmd.add("-o$outPath")
-                cmd.add(source.path)
-                _compile.value = CompileState.Compiling(source.name)
-                // Ensure compiler dir is in LD_LIBRARY_PATH so driver finds amxxpc32.so
-                // (driver does dlopen("amxxpc32.so") / dlopen("./amxxpc32.so"))
-                val compilerDir = amxxpc.parentFile
-                val pb = ProcessBuilder(cmd).directory(scriptDir).redirectErrorStream(true)
-                if (compilerDir != null && compilerDir.isDirectory) {
-                    val oldLd = pb.environment()["LD_LIBRARY_PATH"]
-                    pb.environment()["LD_LIBRARY_PATH"] = compilerDir.absolutePath + if (!oldLd.isNullOrEmpty()) ":$oldLd" else ""
-                }
-                // Last-chance chmod if file lost exec bit (e.g. after reboot)
-                if (!amxxpc.canExecute()) {
-                    try { Runtime.getRuntime().exec(arrayOf("chmod", "755", amxxpc.absolutePath)).waitFor() } catch (_: Throwable) {}
-                    amxxpc.setExecutable(true, false)
-                }
-                val process = pb.start()
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                val exit = process.waitFor()
-                // Show only amxxpc's own output (no exec wrapper lines).
-                val body = output.trim().ifEmpty {
-                    if (exit == 0) "Done." else "Compile failed."
-                }
-                val log = buildString {
-                    append(body)
-                    val out = File(compiledDir, f.nameWithoutExtension + ".amxx")
-                    if (exit != 0 || !out.exists()) {
-                        append("\nCompile failed.")
-                    }
-                }
+                log
+                    .append("── ${source.name} ──\n")
+                    .append(body.trim().ifEmpty { if (ok) "Done." else "Compile failed." })
+                    .append('\n')
+                    .append('\n')
+                if (!ok) failed++
+            }
+            val okCount = total - failed
+                val summary = "\n=== $okCount ok, $failed failed ==="
                 _compile.value =
-                    if (exit == 0) CompileState.Done(log) else CompileState.Failed(log)
-            } catch (t: Throwable) {
-                _compile.value = CompileState.Failed(t.message ?: "Compile error")
+                    if (failed == 0) CompileState.Done(log.toString() + summary)
+                    else CompileState.Failed(log.toString() + summary)
             }
         }
+    }
+
+    /**
+     * Runs amxxpc once for a single source and returns (success, raw output).
+     */
+    private fun compileOne(source: SmaSource): Pair<Boolean, String> {
+        val f = File(source.path)
+        if (!f.exists()) error("Source not found: ${source.name}")
+        val scriptDir = f.parentFile ?: error("Bad source path")
+        val includeDir = File(scriptDir, "include")
+
+        val amxxpc = prepareCompiler(scriptDir) ?: error(
+            "Compiler (amxxpc) unavailable.\n" +
+                "Pick the scripting folder, or install a patch with the embedded compiler first:\n" +
+                "• bundle compiler: $preparedCompilerPath\n" +
+                "• next to script: ${File(scriptDir, "amxxpc").absolutePath}"
+        )
+
+        val cmd = mutableListOf(amxxpc.absolutePath)
+        if (includeDir.isDirectory) {
+            cmd.add("-i${includeDir.absolutePath}")
+        }
+        val compiledDir = _outputRoot.value?.let { File(it) }?.takeIf { it.isDirectory }
+            ?: File(scriptDir, "compiled")
+        compiledDir.mkdirs()
+        val outPath = File(compiledDir, f.nameWithoutExtension + ".amxx").absolutePath
+        cmd.add("-o$outPath")
+        cmd.add(source.path)
+        // Ensure compiler dir is in LD_LIBRARY_PATH so driver finds amxxpc32.so
+        // (driver does dlopen("amxxpc32.so") / dlopen("./amxxpc32.so"))
+        val compilerDir = amxxpc.parentFile
+        val pb = ProcessBuilder(cmd).directory(scriptDir).redirectErrorStream(true)
+        if (compilerDir != null && compilerDir.isDirectory) {
+            val oldLd = pb.environment()["LD_LIBRARY_PATH"]
+            pb.environment()["LD_LIBRARY_PATH"] = compilerDir.absolutePath + if (!oldLd.isNullOrEmpty()) ":$oldLd" else ""
+        }
+        // Last-chance chmod if file lost exec bit (e.g. after reboot)
+        if (!amxxpc.canExecute()) {
+            try { Runtime.getRuntime().exec(arrayOf("chmod", "755", amxxpc.absolutePath)).waitFor() } catch (_: Throwable) {}
+            amxxpc.setExecutable(true, false)
+        }
+        val process = pb.start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val exit = process.waitFor()
+        var ok = exit == 0
+        val body = buildString {
+            append(output.trim().ifEmpty { if (ok) "Done." else "Compile failed." })
+            val out = File(compiledDir, f.nameWithoutExtension + ".amxx")
+            if (exit != 0 || !out.exists()) {
+                ok = false
+                append("\nCompile failed.")
+            }
+        }
+        return ok to body
     }
 
     private val preparedCompilerPath: String
