@@ -1,0 +1,559 @@
+/**
+ * ARM64 offset overrides for CS16Client (ReGameDLL_CS / Velaron fork).
+ * Measured from libcs_android_arm64.so via offsetof against the
+ * Velaron/ReGameDLL_CS headers (see tmp/opencode/offsets_velaron3).
+ * Only the "linux" column is overridden; parsed after AMXX's own files,
+ * so fixed offsets win. Do not touch without re-measuring.
+ */
+
+"Games"
+{
+	"#default"
+	{
+		"Classes"
+		{
+			"CBasePlayer"
+			{
+				"Offsets"
+				{
+					"m_iKevlar"
+					{
+						"type"      "integer"
+						"linux"     "568"
+					}
+
+					"m_iTeam"
+					{
+						"type"      "integer"
+						"linux"     "576"
+					}
+
+					"m_iAccount"
+					{
+						"type"      "integer"
+						"linux"     "580"
+					}
+
+					"m_bHasPrimary"
+					{
+						"type"      "boolean"
+						"linux"     "584"
+					}
+
+					"m_fLastMovement"
+					{
+						"type"      "float"
+						"linux"     "620"
+					}
+
+					"m_iModelName"
+					{
+						"type"      "integer"
+						"linux"     "628"
+					}
+
+					"m_bHasNightVision"
+					{
+						"type"      "boolean"
+						"linux"     "640"
+					}
+
+					"m_bHasC4"
+					{
+						"type"      "boolean"
+						"linux"     "897"
+					}
+
+					"m_bHasDefuser"
+					{
+						"type"      "boolean"
+						"linux"     "898"
+					}
+
+					"m_bIsVIP"
+					{
+						"type"      "boolean"
+						"linux"     "989"
+					}
+
+					"m_iMenu"
+					{
+						"type"      "integer"
+						"linux"     "964"
+					}
+
+					"m_bJustKilledTeammate"
+					{
+						"type"      "boolean"
+						"linux"     "1016"
+					}
+
+					"m_iHostagesKilled"
+					{
+						"type"      "integer"
+						"linux"     "1020"
+					}
+
+					"m_signals"
+					{
+						"type"      "class"
+						"linux"     "1088"
+					}
+
+					"m_iTrain"
+					{
+						"type"      "integer"
+						"linux"     "1564"
+					}
+
+					"m_iClientHideHUD"
+					{
+						"type"      "integer"
+						"linux"     "1624"
+					}
+
+					"m_iFOV"
+					{
+						"type"      "integer"
+						"linux"     "1628"
+					}
+
+					"m_iClientFOV"
+					{
+						"type"      "integer"
+						"linux"     "1632"
+					}
+
+					"m_rgpPlayerItems"
+					{
+						"type"      "classptr"
+						"linux"     "1648"
+					}
+
+					"m_pActiveItem"
+					{
+						"type"      "classptr"
+						"linux"     "1696"
+					}
+
+					"m_pClientActiveItem"
+					{
+						"type"      "classptr"
+						"linux"     "1704"
+					}
+
+					"m_pLastItem"
+					{
+						"type"      "classptr"
+						"linux"     "1712"
+					}
+
+					"m_rgAmmo"
+					{
+						"type"      "integer"
+						"size"      "32"
+						"linux"     "1720"
+					}
+
+					"m_iDeaths"
+					{
+						"type"      "integer"
+						"linux"     "1992"
+					}
+
+					"m_modelIndexPlayer"
+					{
+						"type"      "integer"
+						"linux"     "2180"
+					}
+
+					"m_szAnimExtention"
+					{
+						"type"      "string"
+						"size"      "32"
+						"linux"     "2184"
+					}
+
+					"m_bOwnsShield"
+					{
+						"type"      "boolean"
+						"linux"     "2259"
+					}
+				}
+			}
+
+			"CBasePlayerItem"
+			{
+				"Offsets"
+				{
+					"m_pPlayer"
+					{
+						"type"      "classptr"
+						"linux"     "232"
+					}
+
+					"m_pNext"
+					{
+						"type"      "classptr"
+						"linux"     "240"
+					}
+
+					"m_iId"
+					{
+						"type"      "integer"
+						"linux"     "248"
+					}
+				}
+			}
+
+			"CBasePlayerWeapon"
+			{
+				"Offsets"
+				{
+					"m_flNextPrimaryAttack"
+					{
+						"type"      "float"
+						"linux"     "260"
+					}
+
+					"m_flNextSecondaryAttack"
+					{
+						"type"      "float"
+						"linux"     "264"
+					}
+
+					"m_flTimeWeaponIdle"
+					{
+						"type"      "float"
+						"linux"     "268"
+					}
+
+					"m_iPrimaryAmmoType"
+					{
+						"type"      "integer"
+						"linux"     "272"
+					}
+
+					"m_iSecondaryAmmoType"
+					{
+						"type"      "integer"
+						"linux"     "276"
+					}
+
+					"m_iClip"
+					{
+						"type"      "integer"
+						"linux"     "280"
+					}
+
+					"m_iClientClip"
+					{
+						"type"      "integer"
+						"linux"     "284"
+					}
+
+					"m_iClientWeaponState"
+					{
+						"type"      "integer"
+						"linux"     "288"
+					}
+
+					"m_fInReload"
+					{
+						"type"      "boolean"
+						"linux"     "292"
+					}
+
+					"m_fInSpecialReload"
+					{
+						"type"      "boolean"
+						"linux"     "296"
+					}
+
+					"m_iDefaultAmmo"
+					{
+						"type"      "integer"
+						"linux"     "300"
+					}
+
+					"m_iShellId"
+					{
+						"type"      "integer"
+						"linux"     "304"
+					}
+
+					"m_fMaxSpeed"
+					{
+						"type"      "float"
+						"linux"     "308"
+					}
+
+					"m_bDelayFire"
+					{
+						"type"      "boolean"
+						"linux"     "312"
+					}
+
+					"m_iDirection"
+					{
+						"type"      "integer"
+						"linux"     "316"
+					}
+
+					"m_bSecondarySilencerOn"
+					{
+						"type"      "boolean"
+						"linux"     "320"
+					}
+
+					"m_flAccuracy"
+					{
+						"type"      "float"
+						"linux"     "324"
+					}
+
+					"m_flLastFire"
+					{
+						"type"      "float"
+						"linux"     "328"
+					}
+
+					"m_iShotsFired"
+					{
+						"type"      "integer"
+						"linux"     "332"
+					}
+
+					"m_vVecAiming"
+					{
+						"type"      "vector"
+						"linux"     "336"
+					}
+
+					"m_flGlock18Shoot"
+					{
+						"type"      "float"
+						"linux"     "352"
+					}
+
+					"m_iGlock18ShotsFired"
+					{
+						"type"      "integer"
+						"linux"     "356"
+					}
+
+					"m_flFamasShoot"
+					{
+						"type"      "float"
+						"linux"     "360"
+					}
+
+					"m_iFamasShotsFired"
+					{
+						"type"      "integer"
+						"linux"     "364"
+					}
+
+					"m_fBurstSpread"
+					{
+						"type"      "float"
+						"linux"     "368"
+					}
+
+					"m_iWeaponState"
+					{
+						"type"      "integer"
+						"linux"     "372"
+					}
+
+					"m_flNextReload"
+					{
+						"type"      "float"
+						"linux"     "376"
+					}
+
+					"m_flDecreaseShotsFired"
+					{
+						"type"      "float"
+						"linux"     "380"
+					}
+
+					"m_usFireGlock18"
+					{
+						"type"      "short"
+						"linux"     "384"
+					}
+
+					"m_usFireFamas"
+					{
+						"type"      "short"
+						"linux"     "386"
+					}
+				}
+			}
+
+			"CArmoury"
+			{
+				"Offsets"
+				{
+					"m_iItem"
+					{
+						"type"      "integer"
+						"linux"     "204"
+					}
+
+					"m_iCount"
+					{
+						"type"      "integer"
+						"linux"     "208"
+					}
+
+					"m_iInitialCount"
+					{
+						"type"      "integer"
+						"linux"     "212"
+					}
+				}
+			}
+
+			"CGrenade"
+			{
+				"Offsets"
+				{
+					"m_bStartDefuse"
+					{
+						"type"      "boolean"
+						"linux"     "496"
+					}
+
+					"m_flC4Blow"
+					{
+						"type"      "float"
+						"linux"     "524"
+					}
+				}
+			}
+
+			"CWeaponBox"
+			{
+				"Offsets"
+				{
+					"m_rgpPlayerItems"
+					{
+						"type"      "classptr"
+						"size"      "5"
+						"linux"     "208"
+					}
+				}
+			}
+
+			"CBaseMonster"
+			{
+				"Offsets"
+				{
+					"m_hTargetEnt"
+					{
+						"type"      "ehandle"
+						"linux"     "448"
+					}
+				}
+			}
+
+			"CHostageImprov"
+			{
+				"Offsets"
+				{
+					"m_behavior"
+					{
+						"type"      "classptr"
+						"linux"     "64"
+					}
+
+					"m_idleState"
+					{
+						"type"      "classptr"
+						"linux"     "96"
+					}
+
+					"m_followState"
+					{
+						"type"      "classptr"
+						"linux"     "368"
+					}
+				}
+			}
+
+			"CHostage"
+			{
+				"Offsets"
+				{
+					"m_flNextChange"
+					{
+						"type"      "float"
+						"linux"     "508"
+					}
+
+					"m_flPathAcquired"
+					{
+						"type"      "float"
+						"linux"     "2060"
+					}
+
+					"m_iHostageIndex"
+					{
+						"type"      "integer"
+						"linux"     "2076"
+					}
+
+					"m_improv"
+					{
+						"type"      "classptr"
+						"linux"     "2088"
+					}
+				}
+			}
+
+			"HostageFollowState"
+			{
+				"Offsets"
+				{
+					"m_leader"
+					{
+						"type"      "classptr"
+						"linux"     "24"
+					}
+				}
+			}
+
+			"SimpleStateMachine"
+			{
+				"Offsets"
+				{
+					"m_state"
+					{
+						"type"      "classptr"
+						"linux"     "8"
+					}
+
+					"m_stateTimer"
+					{
+						"type"      "float"
+						"linux"     "16"
+					}
+				}
+			}
+
+			"CHalfLifeMultiplay"
+			{
+				"Offsets"
+				{
+					"m_bMapHasBombTarget"
+					{
+						"type"      "boolean"
+						"linux"     "150"
+					}
+				}
+			}
+		}
+	}
+}
