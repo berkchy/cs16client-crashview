@@ -777,11 +777,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 if (!ok) failed++
             }
             val okCount = total - failed
-                val summary = "\n=== $okCount ok, $failed failed ==="
-                _compile.value =
-                    if (failed == 0) CompileState.Done(log.toString() + summary)
-                    else CompileState.Failed(log.toString() + summary)
-            }
+            val summary = "\n=== $okCount ok, $failed failed ==="
+            _compile.value =
+                if (failed == 0) CompileState.Done(log.toString() + summary)
+                else CompileState.Failed(log.toString() + summary)
         }
     }
 
