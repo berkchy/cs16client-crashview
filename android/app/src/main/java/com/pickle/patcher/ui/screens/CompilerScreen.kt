@@ -233,9 +233,12 @@ fun CompilerScreen(vm: PatcherViewModel) {
                     )
                     Row {
                         if (scripts.size > 1) {
-                            GhostButton(text = if (selected.size == scripts.size) "Clear" else "All") {
-                                selected = if (selected.size != scripts.size) scripts.map { it.path }.toSet() else emptySet()
-                            }
+                            GhostButton(
+                                text = if (selected.size == scripts.size) "Clear" else "All",
+                                onClick = {
+                                    selected = if (selected.size != scripts.size) scripts.map { it.path }.toSet() else emptySet()
+                                },
+                            )
                         }
                     }
                 }
