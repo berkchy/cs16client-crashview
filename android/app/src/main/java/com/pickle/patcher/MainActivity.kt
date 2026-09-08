@@ -328,7 +328,7 @@ private fun OverflowMenu(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "github.com/berkchy/cs16client-crashview",
+                        "github.com/berkchy/cs16-meta-patcher",
                         style = MaterialTheme.typography.bodySmall,
                         color = Gray40,
                     )

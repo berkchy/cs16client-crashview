@@ -4,6 +4,9 @@ build/
 # archives & logs
 *.tgz
 *.log
+ci-watch.sh
+ci-watch.seen
+push-tag.sh
 
 # signing material (create your own, never commit)
 *.keystore

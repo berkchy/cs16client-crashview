@@ -720,7 +720,7 @@ echo "   yapb -> $(ls -l "$OUT/lib/arm64-v8a/libyapb.so" | awk '{print $5}') byt
 echo "== building client (vcs16, crash handler) =="
 CLIENT_SRC="$REPO_ROOT/vcs16"
 CLIENT_BUILD="$TMP/client-build"
-# Ensure vcs16 submodules are present (utlstring.h etc). CI checks out cs16client-amxx
+# Ensure vcs16 submodules are present (utlstring.h etc). CI checks out cs16-meta-patcher
 # without --recurse-submodules and vcs16 was copied without .git, so 3rdparty dirs may be empty.
 if [ -f "$CLIENT_SRC/.gitmodules" ]; then
   if [ -d "$CLIENT_SRC/.git" ]; then

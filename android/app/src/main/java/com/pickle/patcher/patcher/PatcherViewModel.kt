@@ -150,7 +150,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     val hasCachedBundle: Boolean get() = bundleProvider.hasCachedBundle()
 
-    val repo = "berkchy/cs16client-amxx"
+    val repo = "berkchy/cs16-meta-patcher"
 
     private val workDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "patcher")
 
@@ -915,7 +915,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
         /** Releases (tags + patcher APK) are published here by CI. */
-        const val APP_RELEASE_REPO = "berkchy/cs16client-crashview"
+        const val APP_RELEASE_REPO = "berkchy/cs16-meta-patcher"
     }
 
     /**
