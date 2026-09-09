@@ -1,4 +1,5 @@
 diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
+index 97f15a0..0331a9c 100644
 --- a/modules/cstrike/csx/CMisc.cpp
 +++ b/modules/cstrike/csx/CMisc.cpp
 @@ -13,6 +13,7 @@
@@ -18,19 +19,18 @@ diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
  
  	//if ( ignoreBots(pEdict) )
  	if ( (int)csstats_rankbots->value == 0 &&
-@@ -94,7 +95,19 @@ void CPlayer::PutInServer(){
+@@ -94,7 +95,18 @@ void CPlayer::PutInServer(){
  		return;
  
  	restartStats();
 -	const char* name = STRING(pEdict->v.netname);
-+	// The edict netname can be null, empty or stale for fake clients that
-+	// have not finished spawning; strlen/strcmp on it crashes in libc.
-+	// Prefer the caller-supplied infobuffer name (always valid), then the
-+	// edict netname, then a synthesized placeholder -- never wild memory.
++	// The edict netname is unreliable for fake clients: a nonzero string id
++	// can still resolve via STRING() to a wild pointer and crash in strlen().
++	// Always use the caller-supplied infobuffer name (valid C string); fall
++	// back to a synthesized placeholder -- never dereference the edict
++	// netname here.
 +	char tmpname[32];
 +	const char* name = nameOverride;
-+	if ( !name || !*name )
-+		name = (pEdict && pEdict->v.netname) ? STRING(pEdict->v.netname) : NULL;
 +	if ( !name || !*name )
 +	{
 +		snprintf(tmpname, sizeof(tmpname), "Player#%d", index);
@@ -39,7 +39,7 @@ diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
  	const char* unique = name;
  	bool isip = false;
  	switch((int)csstats_rank->value) {
-@@ -106,6 +119,10 @@ void CPlayer::PutInServer(){
+@@ -106,6 +118,10 @@ void CPlayer::PutInServer(){
  		unique = ip;
  		isip = true;
  	}
@@ -51,6 +51,7 @@ diff --git a/modules/cstrike/csx/CMisc.cpp b/modules/cstrike/csx/CMisc.cpp
  }
  
 diff --git a/modules/cstrike/csx/CMisc.h b/modules/cstrike/csx/CMisc.h
+index 4c6492b..e5f0ee8 100644
 --- a/modules/cstrike/csx/CMisc.h
 +++ b/modules/cstrike/csx/CMisc.h
 @@ -55,7 +55,7 @@ struct CPlayer {
@@ -63,6 +64,7 @@ diff --git a/modules/cstrike/csx/CMisc.h b/modules/cstrike/csx/CMisc.h
  	void saveKill(CPlayer* pVictim, int weapon, int hs, int tk);
  	void saveHit(CPlayer* pVictim, int weapon, int damage, int aiming);
 diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
+index 433b581..44a44c0 100644
 --- a/modules/cstrike/csx/CRank.cpp
 +++ b/modules/cstrike/csx/CRank.cpp
 @@ -64,6 +64,8 @@ RankSystem::RankStats::~RankStats() {
@@ -83,19 +85,8 @@ diff --git a/modules/cstrike/csx/CRank.cpp b/modules/cstrike/csx/CRank.cpp
  	delete[] unique;
  	uniquelen = strlen(nn) + 1;
  	unique = new char[uniquelen];
-@@ -160,6 +164,11 @@ void RankSystem::unloadCalc()
- RankSystem::RankStats* RankSystem::findEntryInRank(const char* unique, const char* name, bool isip)
- {
- 	RankStats* a = head;
-+
-+	if ( !unique )
-+		unique = "";
-+	if ( !name )
-+		name = "";
- 	
- 	if (isip) // IP lookups need to strip the port from already saved instances.
- 	{         // Otherwise the stats file would be essentially reset.
 diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
+index ca0ff23..331811d 100644
 --- a/modules/cstrike/csx/meta_api.cpp
 +++ b/modules/cstrike/csx/meta_api.cpp
 @@ -219,7 +219,30 @@ void ClientDisconnect( edict_t *pEntity )
@@ -130,14 +121,17 @@ diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
  
  	RETURN_META(MRES_IGNORED);
  }
-@@ -232,11 +255,11 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
+@@ -232,11 +255,14 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
  		pPlayer->Init(ENTINDEX(pEntity), pEntity);
  	}
  
 -	const char* name = INFOKEY_VALUE(infobuffer,"name");
 -	const char* oldname = STRING(pEntity->v.netname);
 +	const char* name = (infobuffer) ? INFOKEY_VALUE(infobuffer,"name") : NULL;
-+	const char* oldname = (pEntity && pEntity->v.netname) ? STRING(pEntity->v.netname) : NULL;
++	// Never resolve the edict netname here: for fake clients a nonzero
++	// string id can still resolve via STRING() to wild memory and crash in
++	// strcmp(). Compare against the rank entry's own stored name instead.
++	const char* oldname = (pPlayer->rank) ? pPlayer->rank->getName() : NULL;
  
  	if ( pPlayer->rank ){
 -		if ( strcmp(oldname,name) != 0 ) {
@@ -145,7 +139,7 @@ diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
  			if ((int)csstats_rank->value == 0)
  				pPlayer->rank = g_rank.findEntryInRank( name, name );
  			else
-@@ -244,8 +267,9 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
+@@ -244,8 +270,9 @@ void ClientUserInfoChanged_Post( edict_t *pEntity, char *infobuffer ) {
  		}
  	}
  	else if ( pPlayer->IsBot() ) {
@@ -157,6 +151,7 @@ diff --git a/modules/cstrike/csx/meta_api.cpp b/modules/cstrike/csx/meta_api.cpp
  	RETURN_META(MRES_IGNORED);
  }
 diff --git a/modules/cstrike/csx/usermsg.cpp b/modules/cstrike/csx/usermsg.cpp
+index 5cb463b..d42ee43 100644
 --- a/modules/cstrike/csx/usermsg.cpp
 +++ b/modules/cstrike/csx/usermsg.cpp
 @@ -136,7 +136,7 @@ void Client_Damage(void* mValue){
