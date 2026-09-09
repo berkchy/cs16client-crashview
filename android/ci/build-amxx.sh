@@ -106,6 +106,9 @@ apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
+# Runtime translation of legacy 32-bit pdata offsets to the measured arm64
+# ReGameDLL layout (see patch header for how the tables are regenerated).
+apply_patch "$PATCHES/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
 # This causes "array_level=='0'" assertion failure on any enum-constant array index.
 # Even after fixing =='0' -> ==0, the assertion still fires for plugins (eg

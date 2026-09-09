@@ -1,0 +1,677 @@
+diff --git a/modules/fakemeta/pdata.cpp b/modules/fakemeta/pdata.cpp
+index 870be62..178fff6 100644
+--- a/modules/fakemeta/pdata.cpp
++++ b/modules/fakemeta/pdata.cpp
+@@ -40,6 +40,218 @@ bool IsBadWritePtr(void *l, size_t size)
+ }
+ #endif
+ 
++#if defined(__linux__) && defined(__aarch64__)
++// Offsets in ReGameDLL on arm64 Android differ from the legacy 32-bit linux
++// layout that most plugins were written against. These tables were generated
++// from the measured arm64 gamedata override (custom/offsets-cstrike-replugged
++// .txt) matched per-class against the pristine 32-bit offsets shipped with
++// AMXX. "Cell" natives (get/set_pdata_int/float/cbase) multiply the folded
++// offset by 4, so the key is the folded 32-bit CELL value; byte-based natives
++// (string/ent/bool/byte/short/vector/ehandle) use it directly as a byte
++// offset, so the key is the folded 32-bit BYTE value. Unknown offsets pass
++// through untouched, so plugins already targeting the arm64 layout keep
++// working.
++struct PdataOffsetPair { unsigned short b32; unsigned short b64; };
++static const PdataOffsetPair s_TranslateCell[] =
++{
++	{ 45, 58 }, // cbaseplayeritem.m_pPlayer
++	{ 46, 60 }, // cbaseplayeritem.m_pNext
++	{ 47, 62 }, // cbaseplayeritem.m_iId
++	{ 50, 65 }, // cbaseplayerweapon.m_flNextPrimaryAttack
++	{ 51, 66 }, // cbaseplayerweapon.m_flNextSecondaryAttack
++	{ 52, 67 }, // cbaseplayerweapon.m_flTimeWeaponIdle
++	{ 53, 68 }, // cbaseplayerweapon.m_iPrimaryAmmoType
++	{ 54, 69 }, // cbaseplayerweapon.m_iSecondaryAmmoType
++	{ 55, 70 }, // cbaseplayerweapon.m_iClip
++	{ 56, 71 }, // cbaseplayerweapon.m_iClientClip
++	{ 57, 72 }, // cbaseplayerweapon.m_iClientWeaponState
++	{ 58, 73 }, // cbaseplayerweapon.m_fInReload
++	{ 59, 74 }, // cbaseplayerweapon.m_fInSpecialReload
++	{ 60, 75 }, // cbaseplayerweapon.m_iDefaultAmmo
++	{ 61, 76 }, // cbaseplayerweapon.m_iShellId
++	{ 62, 77 }, // cbaseplayerweapon.m_fMaxSpeed
++	{ 64, 79 }, // cbaseplayerweapon.m_iDirection
++	{ 66, 81 }, // cbaseplayerweapon.m_flAccuracy
++	{ 67, 82 }, // cbaseplayerweapon.m_flLastFire
++	{ 68, 83 }, // cbaseplayerweapon.m_iShotsFired
++	{ 73, 88 }, // cbaseplayerweapon.m_flGlock18Shoot
++	{ 74, 89 }, // cbaseplayerweapon.m_iGlock18ShotsFired
++	{ 75, 90 }, // cbaseplayerweapon.m_flFamasShoot
++	{ 76, 91 }, // cbaseplayerweapon.m_iFamasShotsFired
++	{ 77, 92 }, // cbaseplayerweapon.m_fBurstSpread
++	{ 78, 93 }, // cbaseplayerweapon.m_iWeaponState
++	{ 79, 94 }, // cbaseplayerweapon.m_flNextReload
++	{ 80, 95 }, // cbaseplayerweapon.m_flDecreaseShotsFired
++	{ 105, 131 }, // cgrenade.m_flC4Blow
++	{ 117, 142 }, // cbaseplayer.m_iKevlar
++	{ 119, 144 }, // cbaseplayer.m_iTeam
++	{ 120, 145 }, // cbaseplayer.m_iAccount
++	{ 129, 155 }, // cbaseplayer.m_fLastMovement
++	{ 131, 157 }, // cbaseplayer.m_iModelName
++	{ 210, 241 }, // cbaseplayer.m_iMenu
++	{ 222, 255 }, // cbaseplayer.m_iHostagesKilled
++	{ 355, 391 }, // cbaseplayer.m_iTrain
++	{ 367, 406 }, // cbaseplayer.m_iClientHideHUD
++	{ 368, 407 }, // cbaseplayer.m_iFOV
++	{ 369, 408 }, // cbaseplayer.m_iClientFOV
++	{ 372, 412 }, // cbaseplayer.m_rgpPlayerItems
++	{ 378, 424 }, // cbaseplayer.m_pActiveItem
++	{ 379, 426 }, // cbaseplayer.m_pClientActiveItem
++	{ 380, 428 }, // cbaseplayer.m_pLastItem
++	{ 381, 430 }, // cbaseplayer.m_rgAmmo
++	{ 449, 498 }, // cbaseplayer.m_iDeaths
++	{ 488, 515 }, // chostage.m_flPathAcquired
++	{ 492, 519 }, // chostage.m_iHostageIndex
++	{ 496, 545 }, // cbaseplayer.m_modelIndexPlayer
++	{ 3000, 53 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3001, 54 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3002, 55 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3003, 56 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3004, 57 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++};
++
++static const PdataOffsetPair s_TranslateByte[] =
++{
++	{ 152, 208 }, // cweaponbox.m_rgpPlayerItems
++	{ 156, 208 }, // carmoury.m_iCount
++	{ 160, 212 }, // carmoury.m_iInitialCount
++	{ 180, 232 }, // cbaseplayeritem.m_pPlayer
++	{ 184, 240 }, // cbaseplayeritem.m_pNext
++	{ 188, 248 }, // cbaseplayeritem.m_iId
++	{ 200, 260 }, // cbaseplayerweapon.m_flNextPrimaryAttack
++	{ 204, 264 }, // cbaseplayerweapon.m_flNextSecondaryAttack
++	{ 208, 268 }, // cbaseplayerweapon.m_flTimeWeaponIdle
++	{ 212, 272 }, // cbaseplayerweapon.m_iPrimaryAmmoType
++	{ 216, 276 }, // cbaseplayerweapon.m_iSecondaryAmmoType
++	{ 220, 280 }, // cbaseplayerweapon.m_iClip
++	{ 224, 284 }, // cbaseplayerweapon.m_iClientClip
++	{ 228, 288 }, // cbaseplayerweapon.m_iClientWeaponState
++	{ 232, 292 }, // cbaseplayerweapon.m_fInReload
++	{ 236, 296 }, // cbaseplayerweapon.m_fInSpecialReload
++	{ 240, 300 }, // cbaseplayerweapon.m_iDefaultAmmo
++	{ 244, 304 }, // cbaseplayerweapon.m_iShellId
++	{ 248, 308 }, // cbaseplayerweapon.m_fMaxSpeed
++	{ 252, 312 }, // cbaseplayerweapon.m_bDelayFire
++	{ 256, 316 }, // cbaseplayerweapon.m_iDirection
++	{ 260, 320 }, // cbaseplayerweapon.m_bSecondarySilencerOn
++	{ 264, 324 }, // cbaseplayerweapon.m_flAccuracy
++	{ 268, 328 }, // cbaseplayerweapon.m_flLastFire
++	{ 272, 332 }, // cbaseplayerweapon.m_iShotsFired
++	{ 276, 336 }, // cbaseplayerweapon.m_vVecAiming
++	{ 292, 352 }, // cbaseplayerweapon.m_flGlock18Shoot
++	{ 296, 356 }, // cbaseplayerweapon.m_iGlock18ShotsFired
++	{ 300, 360 }, // cbaseplayerweapon.m_flFamasShoot
++	{ 304, 364 }, // cbaseplayerweapon.m_iFamasShotsFired
++	{ 308, 368 }, // cbaseplayerweapon.m_fBurstSpread
++	{ 312, 372 }, // cbaseplayerweapon.m_iWeaponState
++	{ 316, 376 }, // cbaseplayerweapon.m_flNextReload
++	{ 320, 380 }, // cbaseplayerweapon.m_flDecreaseShotsFired
++	{ 324, 384 }, // cbaseplayerweapon.m_usFireGlock18
++	{ 326, 386 }, // cbaseplayerweapon.m_usFireFamas
++	{ 364, 448 }, // cbasemonster.m_hTargetEnt
++	{ 404, 496 }, // cgrenade.m_bStartDefuse
++	{ 420, 524 }, // cgrenade.m_flC4Blow
++	{ 468, 568 }, // cbaseplayer.m_iKevlar
++	{ 476, 576 }, // cbaseplayer.m_iTeam
++	{ 480, 580 }, // cbaseplayer.m_iAccount
++	{ 484, 584 }, // cbaseplayer.m_bHasPrimary
++	{ 516, 620 }, // cbaseplayer.m_fLastMovement
++	{ 524, 628 }, // cbaseplayer.m_iModelName
++	{ 536, 640 }, // cbaseplayer.m_bHasNightVision
++	{ 793, 897 }, // cbaseplayer.m_bHasC4
++	{ 794, 898 }, // cbaseplayer.m_bHasDefuser
++	{ 840, 964 }, // cbaseplayer.m_iMenu
++	{ 857, 989 }, // cbaseplayer.m_bIsVIP
++	{ 884, 1016 }, // cbaseplayer.m_bJustKilledTeammate
++	{ 888, 1020 }, // cbaseplayer.m_iHostagesKilled
++	{ 956, 1088 }, // cbaseplayer.m_signals
++	{ 1420, 1564 }, // cbaseplayer.m_iTrain
++	{ 1468, 1624 }, // cbaseplayer.m_iClientHideHUD
++	{ 1472, 1628 }, // cbaseplayer.m_iFOV
++	{ 1476, 1632 }, // cbaseplayer.m_iClientFOV
++	{ 1488, 1648 }, // cbaseplayer.m_rgpPlayerItems
++	{ 1512, 1696 }, // cbaseplayer.m_pActiveItem
++	{ 1516, 1704 }, // cbaseplayer.m_pClientActiveItem
++	{ 1520, 1712 }, // cbaseplayer.m_pLastItem
++	{ 1524, 1720 }, // cbaseplayer.m_rgAmmo
++	{ 1796, 1992 }, // cbaseplayer.m_iDeaths
++	{ 1952, 2060 }, // chostage.m_flPathAcquired
++	{ 1968, 2076 }, // chostage.m_iHostageIndex
++	{ 1980, 2088 }, // chostage.m_improv
++	{ 1984, 2180 }, // cbaseplayer.m_modelIndexPlayer
++	{ 1988, 2184 }, // cbaseplayer.m_szAnimExtention
++	{ 2063, 2259 }, // cbaseplayer.m_bOwnsShield
++};
++
++static int TranslatePdataOffset(int iOffset, bool bCell)
++{
++	if (iOffset < 0 || iOffset > 0xFFFF)
++	{
++		return iOffset;
++	}
++
++	/* Array members are usually accessed as base + index; the index is
++	 * added before the fold, so each slot must be retargeted too. Pointer
++	 * arrays (classptr) are 8-byte strided on arm64 (was 4). */
++	if (bCell)
++	{
++		static const struct { unsigned short base32; unsigned short base64;
++		                       unsigned short stride64; unsigned short len; } s_PdataArrays[] =
++		{
++			{ 38, 52, 2, 5 },   // CWeaponBox::m_rgpPlayerItems[5]
++			{ 372, 412, 2, 5 }, // CBasePlayer::m_rgpPlayerItems[5]
++			{ 381, 430, 1, 32 },// CBasePlayer::m_rgAmmo[32]
++		};
++		unsigned int ai;
++		for (ai = 0; ai < sizeof(s_PdataArrays) / sizeof(s_PdataArrays[0]); ai++)
++		{
++			int d = iOffset - (int)s_PdataArrays[ai].base32;
++			if (d >= 0 && d < (int)s_PdataArrays[ai].len)
++			{
++				return (int)s_PdataArrays[ai].base64 + d * (int)s_PdataArrays[ai].stride64;
++			}
++		}
++	}
++
++
++	const struct PdataOffsetPair *t;
++	unsigned int n;
++
++	if (bCell)
++	{
++		t = s_TranslateCell;
++		n = sizeof(s_TranslateCell) / sizeof(s_TranslateCell[0]);
++	}
++	else
++	{
++		t = s_TranslateByte;
++		n = sizeof(s_TranslateByte) / sizeof(s_TranslateByte[0]);
++	}
++
++	const unsigned short key = (unsigned short)iOffset;
++	int lo = 0;
++	int hi = (int)n - 1;
++	while (lo <= hi)
++	{
++		int mid = (lo + hi) >> 1;
++		if (t[mid].b32 == key)
++		{
++			return t[mid].b64;
++		}
++		if (t[mid].b32 < key)
++		{
++			lo = mid + 1;
++		}
++		else
++		{
++			hi = mid - 1;
++		}
++	}
++
++	return iOffset;
++}
++#endif
++
+ static cell AMX_NATIVE_CALL set_pdata_int(AMX *amx, cell *params)
+ {
+ 	int index=params[1];
+@@ -50,6 +262,10 @@ static cell AMX_NATIVE_CALL set_pdata_int(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -72,6 +288,10 @@ static cell AMX_NATIVE_CALL get_pdata_int(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -94,6 +314,10 @@ static cell AMX_NATIVE_CALL set_pdata_float(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -116,6 +340,10 @@ static cell AMX_NATIVE_CALL get_pdata_float(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -137,6 +365,10 @@ static cell AMX_NATIVE_CALL get_pdata_string(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[6];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, false);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 6 || params[7] == CELL_MIN)
+@@ -174,6 +406,10 @@ static cell AMX_NATIVE_CALL set_pdata_string(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[5];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, false);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 5 || params[6] == CELL_MIN)
+@@ -227,6 +463,10 @@ static cell AMX_NATIVE_CALL get_pdata_ent(AMX *amx, cell *params)
+ 
+ #if defined( __linux__ )
+ 	iOffset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, false);
++#endif
+ #elif defined( __APPLE__ )
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -271,6 +511,10 @@ static cell AMX_NATIVE_CALL set_pdata_ent(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -294,6 +538,10 @@ static cell AMX_NATIVE_CALL get_pdata_bool(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -317,6 +565,10 @@ static cell AMX_NATIVE_CALL set_pdata_bool(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -340,6 +592,10 @@ static cell AMX_NATIVE_CALL get_pdata_byte(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -363,6 +619,10 @@ static cell AMX_NATIVE_CALL set_pdata_byte(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -386,6 +646,10 @@ static cell AMX_NATIVE_CALL get_pdata_short(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -409,6 +673,10 @@ static cell AMX_NATIVE_CALL set_pdata_short(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -432,6 +700,10 @@ static cell AMX_NATIVE_CALL get_pdata_vector(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -461,6 +733,10 @@ static cell AMX_NATIVE_CALL set_pdata_vector(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+@@ -488,6 +764,10 @@ static cell AMX_NATIVE_CALL get_pdata_ehandle(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -539,6 +819,10 @@ static cell AMX_NATIVE_CALL set_pdata_ehandle(AMX *amx, cell *params)
+ 
+ #if defined(__linux__)
+ 	offset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	offset = TranslatePdataOffset(offset, false);
++#endif
+ #elif defined(__APPLE__)
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
+diff --git a/modules/hamsandwich/pdata.cpp b/modules/hamsandwich/pdata.cpp
+index f71b0bb..e45b43c 100644
+--- a/modules/hamsandwich/pdata.cpp
++++ b/modules/hamsandwich/pdata.cpp
+@@ -45,6 +45,218 @@
+ 	}
+ 
+ // Return -1 on null, -2 on invalid, and the the index of any other.
++#if defined(__linux__) && defined(__aarch64__)
++// Offsets in ReGameDLL on arm64 Android differ from the legacy 32-bit linux
++// layout that most plugins were written against. These tables were generated
++// from the measured arm64 gamedata override (custom/offsets-cstrike-replugged
++// .txt) matched per-class against the pristine 32-bit offsets shipped with
++// AMXX. "Cell" natives (get/set_pdata_int/float/cbase) multiply the folded
++// offset by 4, so the key is the folded 32-bit CELL value; byte-based natives
++// (string/ent/bool/byte/short/vector/ehandle) use it directly as a byte
++// offset, so the key is the folded 32-bit BYTE value. Unknown offsets pass
++// through untouched, so plugins already targeting the arm64 layout keep
++// working.
++struct PdataOffsetPair { unsigned short b32; unsigned short b64; };
++static const PdataOffsetPair s_TranslateCell[] =
++{
++	{ 45, 58 }, // cbaseplayeritem.m_pPlayer
++	{ 46, 60 }, // cbaseplayeritem.m_pNext
++	{ 47, 62 }, // cbaseplayeritem.m_iId
++	{ 50, 65 }, // cbaseplayerweapon.m_flNextPrimaryAttack
++	{ 51, 66 }, // cbaseplayerweapon.m_flNextSecondaryAttack
++	{ 52, 67 }, // cbaseplayerweapon.m_flTimeWeaponIdle
++	{ 53, 68 }, // cbaseplayerweapon.m_iPrimaryAmmoType
++	{ 54, 69 }, // cbaseplayerweapon.m_iSecondaryAmmoType
++	{ 55, 70 }, // cbaseplayerweapon.m_iClip
++	{ 56, 71 }, // cbaseplayerweapon.m_iClientClip
++	{ 57, 72 }, // cbaseplayerweapon.m_iClientWeaponState
++	{ 58, 73 }, // cbaseplayerweapon.m_fInReload
++	{ 59, 74 }, // cbaseplayerweapon.m_fInSpecialReload
++	{ 60, 75 }, // cbaseplayerweapon.m_iDefaultAmmo
++	{ 61, 76 }, // cbaseplayerweapon.m_iShellId
++	{ 62, 77 }, // cbaseplayerweapon.m_fMaxSpeed
++	{ 64, 79 }, // cbaseplayerweapon.m_iDirection
++	{ 66, 81 }, // cbaseplayerweapon.m_flAccuracy
++	{ 67, 82 }, // cbaseplayerweapon.m_flLastFire
++	{ 68, 83 }, // cbaseplayerweapon.m_iShotsFired
++	{ 73, 88 }, // cbaseplayerweapon.m_flGlock18Shoot
++	{ 74, 89 }, // cbaseplayerweapon.m_iGlock18ShotsFired
++	{ 75, 90 }, // cbaseplayerweapon.m_flFamasShoot
++	{ 76, 91 }, // cbaseplayerweapon.m_iFamasShotsFired
++	{ 77, 92 }, // cbaseplayerweapon.m_fBurstSpread
++	{ 78, 93 }, // cbaseplayerweapon.m_iWeaponState
++	{ 79, 94 }, // cbaseplayerweapon.m_flNextReload
++	{ 80, 95 }, // cbaseplayerweapon.m_flDecreaseShotsFired
++	{ 105, 131 }, // cgrenade.m_flC4Blow
++	{ 117, 142 }, // cbaseplayer.m_iKevlar
++	{ 119, 144 }, // cbaseplayer.m_iTeam
++	{ 120, 145 }, // cbaseplayer.m_iAccount
++	{ 129, 155 }, // cbaseplayer.m_fLastMovement
++	{ 131, 157 }, // cbaseplayer.m_iModelName
++	{ 210, 241 }, // cbaseplayer.m_iMenu
++	{ 222, 255 }, // cbaseplayer.m_iHostagesKilled
++	{ 355, 391 }, // cbaseplayer.m_iTrain
++	{ 367, 406 }, // cbaseplayer.m_iClientHideHUD
++	{ 368, 407 }, // cbaseplayer.m_iFOV
++	{ 369, 408 }, // cbaseplayer.m_iClientFOV
++	{ 372, 412 }, // cbaseplayer.m_rgpPlayerItems
++	{ 378, 424 }, // cbaseplayer.m_pActiveItem
++	{ 379, 426 }, // cbaseplayer.m_pClientActiveItem
++	{ 380, 428 }, // cbaseplayer.m_pLastItem
++	{ 381, 430 }, // cbaseplayer.m_rgAmmo
++	{ 449, 498 }, // cbaseplayer.m_iDeaths
++	{ 488, 515 }, // chostage.m_flPathAcquired
++	{ 492, 519 }, // chostage.m_iHostageIndex
++	{ 496, 545 }, // cbaseplayer.m_modelIndexPlayer
++	{ 3000, 53 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3001, 54 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3002, 55 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3003, 56 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++	{ 3004, 57 }, // ESCAPE Escape:anim-frame/ground/lastevent/seqfin/seqloop
++};
++
++static const PdataOffsetPair s_TranslateByte[] =
++{
++	{ 152, 208 }, // cweaponbox.m_rgpPlayerItems
++	{ 156, 208 }, // carmoury.m_iCount
++	{ 160, 212 }, // carmoury.m_iInitialCount
++	{ 180, 232 }, // cbaseplayeritem.m_pPlayer
++	{ 184, 240 }, // cbaseplayeritem.m_pNext
++	{ 188, 248 }, // cbaseplayeritem.m_iId
++	{ 200, 260 }, // cbaseplayerweapon.m_flNextPrimaryAttack
++	{ 204, 264 }, // cbaseplayerweapon.m_flNextSecondaryAttack
++	{ 208, 268 }, // cbaseplayerweapon.m_flTimeWeaponIdle
++	{ 212, 272 }, // cbaseplayerweapon.m_iPrimaryAmmoType
++	{ 216, 276 }, // cbaseplayerweapon.m_iSecondaryAmmoType
++	{ 220, 280 }, // cbaseplayerweapon.m_iClip
++	{ 224, 284 }, // cbaseplayerweapon.m_iClientClip
++	{ 228, 288 }, // cbaseplayerweapon.m_iClientWeaponState
++	{ 232, 292 }, // cbaseplayerweapon.m_fInReload
++	{ 236, 296 }, // cbaseplayerweapon.m_fInSpecialReload
++	{ 240, 300 }, // cbaseplayerweapon.m_iDefaultAmmo
++	{ 244, 304 }, // cbaseplayerweapon.m_iShellId
++	{ 248, 308 }, // cbaseplayerweapon.m_fMaxSpeed
++	{ 252, 312 }, // cbaseplayerweapon.m_bDelayFire
++	{ 256, 316 }, // cbaseplayerweapon.m_iDirection
++	{ 260, 320 }, // cbaseplayerweapon.m_bSecondarySilencerOn
++	{ 264, 324 }, // cbaseplayerweapon.m_flAccuracy
++	{ 268, 328 }, // cbaseplayerweapon.m_flLastFire
++	{ 272, 332 }, // cbaseplayerweapon.m_iShotsFired
++	{ 276, 336 }, // cbaseplayerweapon.m_vVecAiming
++	{ 292, 352 }, // cbaseplayerweapon.m_flGlock18Shoot
++	{ 296, 356 }, // cbaseplayerweapon.m_iGlock18ShotsFired
++	{ 300, 360 }, // cbaseplayerweapon.m_flFamasShoot
++	{ 304, 364 }, // cbaseplayerweapon.m_iFamasShotsFired
++	{ 308, 368 }, // cbaseplayerweapon.m_fBurstSpread
++	{ 312, 372 }, // cbaseplayerweapon.m_iWeaponState
++	{ 316, 376 }, // cbaseplayerweapon.m_flNextReload
++	{ 320, 380 }, // cbaseplayerweapon.m_flDecreaseShotsFired
++	{ 324, 384 }, // cbaseplayerweapon.m_usFireGlock18
++	{ 326, 386 }, // cbaseplayerweapon.m_usFireFamas
++	{ 364, 448 }, // cbasemonster.m_hTargetEnt
++	{ 404, 496 }, // cgrenade.m_bStartDefuse
++	{ 420, 524 }, // cgrenade.m_flC4Blow
++	{ 468, 568 }, // cbaseplayer.m_iKevlar
++	{ 476, 576 }, // cbaseplayer.m_iTeam
++	{ 480, 580 }, // cbaseplayer.m_iAccount
++	{ 484, 584 }, // cbaseplayer.m_bHasPrimary
++	{ 516, 620 }, // cbaseplayer.m_fLastMovement
++	{ 524, 628 }, // cbaseplayer.m_iModelName
++	{ 536, 640 }, // cbaseplayer.m_bHasNightVision
++	{ 793, 897 }, // cbaseplayer.m_bHasC4
++	{ 794, 898 }, // cbaseplayer.m_bHasDefuser
++	{ 840, 964 }, // cbaseplayer.m_iMenu
++	{ 857, 989 }, // cbaseplayer.m_bIsVIP
++	{ 884, 1016 }, // cbaseplayer.m_bJustKilledTeammate
++	{ 888, 1020 }, // cbaseplayer.m_iHostagesKilled
++	{ 956, 1088 }, // cbaseplayer.m_signals
++	{ 1420, 1564 }, // cbaseplayer.m_iTrain
++	{ 1468, 1624 }, // cbaseplayer.m_iClientHideHUD
++	{ 1472, 1628 }, // cbaseplayer.m_iFOV
++	{ 1476, 1632 }, // cbaseplayer.m_iClientFOV
++	{ 1488, 1648 }, // cbaseplayer.m_rgpPlayerItems
++	{ 1512, 1696 }, // cbaseplayer.m_pActiveItem
++	{ 1516, 1704 }, // cbaseplayer.m_pClientActiveItem
++	{ 1520, 1712 }, // cbaseplayer.m_pLastItem
++	{ 1524, 1720 }, // cbaseplayer.m_rgAmmo
++	{ 1796, 1992 }, // cbaseplayer.m_iDeaths
++	{ 1952, 2060 }, // chostage.m_flPathAcquired
++	{ 1968, 2076 }, // chostage.m_iHostageIndex
++	{ 1980, 2088 }, // chostage.m_improv
++	{ 1984, 2180 }, // cbaseplayer.m_modelIndexPlayer
++	{ 1988, 2184 }, // cbaseplayer.m_szAnimExtention
++	{ 2063, 2259 }, // cbaseplayer.m_bOwnsShield
++};
++
++static int TranslatePdataOffset(int iOffset, bool bCell)
++{
++	if (iOffset < 0 || iOffset > 0xFFFF)
++	{
++		return iOffset;
++	}
++
++	/* Array members are usually accessed as base + index; the index is
++	 * added before the fold, so each slot must be retargeted too. Pointer
++	 * arrays (classptr) are 8-byte strided on arm64 (was 4). */
++	if (bCell)
++	{
++		static const struct { unsigned short base32; unsigned short base64;
++		                       unsigned short stride64; unsigned short len; } s_PdataArrays[] =
++		{
++			{ 38, 52, 2, 5 },   // CWeaponBox::m_rgpPlayerItems[5]
++			{ 372, 412, 2, 5 }, // CBasePlayer::m_rgpPlayerItems[5]
++			{ 381, 430, 1, 32 },// CBasePlayer::m_rgAmmo[32]
++		};
++		unsigned int ai;
++		for (ai = 0; ai < sizeof(s_PdataArrays) / sizeof(s_PdataArrays[0]); ai++)
++		{
++			int d = iOffset - (int)s_PdataArrays[ai].base32;
++			if (d >= 0 && d < (int)s_PdataArrays[ai].len)
++			{
++				return (int)s_PdataArrays[ai].base64 + d * (int)s_PdataArrays[ai].stride64;
++			}
++		}
++	}
++
++
++	const struct PdataOffsetPair *t;
++	unsigned int n;
++
++	if (bCell)
++	{
++		t = s_TranslateCell;
++		n = sizeof(s_TranslateCell) / sizeof(s_TranslateCell[0]);
++	}
++	else
++	{
++		t = s_TranslateByte;
++		n = sizeof(s_TranslateByte) / sizeof(s_TranslateByte[0]);
++	}
++
++	const unsigned short key = (unsigned short)iOffset;
++	int lo = 0;
++	int hi = (int)n - 1;
++	while (lo <= hi)
++	{
++		int mid = (lo + hi) >> 1;
++		if (t[mid].b32 == key)
++		{
++			return t[mid].b64;
++		}
++		if (t[mid].b32 < key)
++		{
++			lo = mid + 1;
++		}
++		else
++		{
++			hi = mid - 1;
++		}
++	}
++
++	return iOffset;
++}
++#endif
++
+ static cell AMX_NATIVE_CALL get_pdata_cbase_safe(AMX *amx, cell *params)
+ {
+ 	int index=params[1];
+@@ -52,6 +264,10 @@ static cell AMX_NATIVE_CALL get_pdata_cbase_safe(AMX *amx, cell *params)
+ 	int iOffset=params[2];
+ #ifdef __linux__
+ 	iOffset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined __APPLE__
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -89,6 +305,10 @@ static cell AMX_NATIVE_CALL get_pdata_cbase(AMX *amx, cell *params)
+ 	int iOffset=params[2];
+ #ifdef __linux__
+ 	iOffset += params[3];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined __APPLE__
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 3)
+@@ -120,6 +340,10 @@ static cell AMX_NATIVE_CALL set_pdata_cbase(AMX *amx, cell *params)
+ 	int iOffset=params[2];
+ #ifdef __linux__
+ 	iOffset += params[4];
++	/* Android arm64: retarget legacy 32-bit offset to the measured ReGameDLL layout. */
++#if defined(__linux__) && defined(__aarch64__)
++	iOffset = TranslatePdataOffset(iOffset, true);
++#endif
+ #elif defined __APPLE__
+ 	// Use Linux offset in older plugins
+ 	if (params[0] / sizeof(cell) == 4)
