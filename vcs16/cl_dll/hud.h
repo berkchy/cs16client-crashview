@@ -401,6 +401,8 @@ private:
 	RGBA m_colors;
 	bool m_bDrawStroke;
 	int m_HUD_d_skull;
+	float m_flAnimProgress;
+	int m_iAnimDir;
 	cvar_t *cl_showpacketloss;
 	cvar_t *cl_showplayerversion;
 	cvar_t *cl_show_scoreboard_on_death;

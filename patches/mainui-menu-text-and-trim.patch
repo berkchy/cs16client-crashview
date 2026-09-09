@@ -44,7 +44,7 @@ index e301762..6d6ba04 100644
  
  void CMenuBannerBitmap::VidInit()
 diff --git a/menus/Main.cpp b/menus/Main.cpp
-index 7d5f380..47d29ec 100644
+index 7d5f380..dc54490 100644
 --- a/menus/Main.cpp
 +++ b/menus/Main.cpp
 @@ -51,8 +51,6 @@ private:
@@ -242,7 +242,7 @@ index 7d5f380..47d29ec 100644
 -			console.pos.y = 180;
 -		}
 +		disconnect.Show();
-+		console.pos.y = 180;
++		console.pos.y = 130;
  	}
  	else
  	{
