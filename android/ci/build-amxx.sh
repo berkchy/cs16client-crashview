@@ -757,6 +757,16 @@ if [ -f "$CLIENT_SRC/.gitmodules" ]; then
     done
   fi
 fi
+# mainui_cpp's own miniutl submodule pin (b2741298) typedefs int64/uint64 from
+# stdint.h, but the Android client DLL (steamtypes.h) already defines int64 as
+# long long while bionic's int64_t is long -> cl_dll/vgui_parser.cpp fails with
+# "typedef redefinition". Replace it with the MiniUTL pin the client was built
+# against (048a416f, which has no conflicting typedefs).
+if [ -d "$CLIENT_SRC/3rdparty/miniutl" ] && [ -d "$CLIENT_SRC/3rdparty/mainui_cpp/miniutl" ]; then
+  echo "   mainui: replacing miniutl submodule with client-compatible pin (048a416f)"
+  rm -rf "$CLIENT_SRC/3rdparty/mainui_cpp/miniutl"
+  cp -a "$CLIENT_SRC/3rdparty/miniutl/." "$CLIENT_SRC/3rdparty/mainui_cpp/miniutl/"
+fi
 cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
