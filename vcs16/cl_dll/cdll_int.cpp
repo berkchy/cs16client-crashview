@@ -61,27 +61,16 @@ static IGameMenuExports *GetNativeMenuExports( void )
 	return static_cast<IGameMenuExports *>( menuFactory( GAMEMENUEXPORTS_INTERFACE_VERSION, NULL ) );
 }
 
-static bool HUD_MessageBox( const char *msg )
-{
-	gEngfuncs.Con_Printf( "%s", msg );
-
-	if( g_iMobileAPIVersion && gMobileAPI.pfnSys_Warn )
-	{
-		gMobileAPI.pfnSys_Warn( "%s", msg );
-		return true;
-	}
-
-	return false;
-}
-
 static void LoadMenuInterface( void )
 {
 	if( g_pMenu )
 		return;
 
+	// The menu library (mainui_cpp) does not export a GameMenuExports
+	// CreateInterface bridge, so g_pMenu stays NULL here. Every g_pMenu
+	// consumer (input keys, ShowVGUIMenu/HideVGUIMenu) is NULL-guarded and
+	// falls back to the legacy touch menu, so this is expected -- no warning.
 	g_pMenu = GetNativeMenuExports();
-	if( !g_pMenu )
-		HUD_MessageBox( "Error: native object \"MenuFactory\" is unavailable\n" );
 }
 
 void InitInput (void);
