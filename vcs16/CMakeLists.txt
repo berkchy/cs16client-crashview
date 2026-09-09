@@ -73,6 +73,7 @@ endif()
 if(BUILD_MAINUI)
 #	set(CS16CLIENT ON)
 	# set(XASH_SDK ../../)
+	set(MAINUI_RENDER_PICBUTTON_TEXT ON)
 	add_subdirectory(3rdparty/mainui_cpp)
 endif()
 

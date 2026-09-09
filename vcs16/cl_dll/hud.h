@@ -370,6 +370,8 @@ public:
 	int DrawScoreboard( float flTime );
 	int DrawTeams( float listslot );
 	int DrawPlayers( float listslot, int nameoffset = 0, const char *team = NULL ); // returns the ypos where it finishes drawing
+	int DrawModernTeamScoreboard( float flTime );
+	int DrawModernTeamPlayers( int teamnumber, int x, int y, int wide, int tall, int nameoffset );
 
 	void DeathMsg( int killer, int victim );
 	void SetScoreboardDefaults( void );
@@ -398,9 +400,12 @@ private:
 	int m_fLastKillTime;
 	RGBA m_colors;
 	bool m_bDrawStroke;
+	int m_HUD_d_skull;
 	cvar_t *cl_showpacketloss;
 	cvar_t *cl_showplayerversion;
 	cvar_t *cl_show_scoreboard_on_death;
+	cvar_t *m_pScoreboardBgAlpha;
+	cvar_t *m_pScoreboardRowAlpha;
 };
 
 //
