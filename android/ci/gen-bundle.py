@@ -78,6 +78,17 @@ def main():
             "required": False,
             "description": "CS16Client client DLL (crash handler)",
         })
+    # Text-based main menu (mainui_cpp -> libmenu_android_arm64.so). Replaces the
+    # stock menu so banner titles and menu buttons render as text.
+    menu_so = os.path.join(libdir, "libmenu_android_arm64.so")
+    if os.path.exists(menu_so):
+        entries.append({
+            "source": "lib/arm64-v8a/libmenu_android_arm64.so",
+            "target": "lib/arm64-v8a/libmenu_android_arm64.so",
+            "method": "STORED",
+            "required": False,
+            "description": "CS16Client main menu (text banners/buttons)",
+        })
     for mod in MODULES:
         p = os.path.join(libdir, f"lib{mod}_amxx_amd64.so")
         if os.path.exists(p):

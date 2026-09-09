@@ -730,7 +730,7 @@ if [ -f "$CLIENT_SRC/.gitmodules" ]; then
     git -C "$CLIENT_SRC" submodule update --init --recursive 2>&1 | head -20 || true
   else
     echo "   vcs16 .git missing, fetching submodules manually"
-    for mod in "3rdparty/mainui_cpp|https://github.com/Velaron/mainui_cpp|2cec9071b99dafecc20baafa40fa68eb5fb6e634" "3rdparty/miniutl|https://github.com/FWGS/MiniUTL|048a416f4c54c501dfd728fd792bfdc9f2883f51"; do
+    for mod in "3rdparty/mainui_cpp|https://github.com/Velaron/mainui_cpp|5b9c60ce408843b6c439ccfe875542978e70de96" "3rdparty/miniutl|https://github.com/FWGS/MiniUTL|048a416f4c54c501dfd728fd792bfdc9f2883f51"; do
       IFS='|' read -r path url rev <<< "$mod"
       if [ ! -f "$CLIENT_SRC/$path/CMakeLists.txt" ] && [ ! -f "$CLIENT_SRC/$path/README.md" ]; then
         rm -rf "$CLIENT_SRC/$path"
@@ -743,6 +743,16 @@ if [ -f "$CLIENT_SRC/.gitmodules" ]; then
         if [ -f "$CLIENT_SRC/$path/.gitmodules" ]; then
           git -C "$CLIENT_SRC/$path" submodule update --init --recursive --depth 1 2>&1 | tail -2 || true
         fi
+        # cs16-meta-patcher menu customizations (text banner titles, trimmed main
+        # menu, Color.cpp build shim). Only meaningful on a pristine checkout.
+        if [ "$path" = "3rdparty/mainui_cpp" ]; then
+          if ! git -C "$CLIENT_SRC/$path" apply --reverse --check "$PATCHES/mainui-menu-text-and-trim.patch" 2>/dev/null; then
+            echo "   mainui: applying cs16 menu customizations"
+            git -C "$CLIENT_SRC/$path" apply "$PATCHES/mainui-menu-text-and-trim.patch" 2>/dev/null || echo "   WARN: mainui patch did not apply cleanly"
+          else
+            echo "   mainui: menu customizations already applied, skipping"
+          fi
+        fi
       fi
     done
   fi
@@ -754,7 +764,8 @@ cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -DANDROID_PLATFORM=android-24 \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=OFF
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=ON -DMAINUI_NAME=menu -DMAINUI_USE_STB=ON
 cmake --build "$CLIENT_BUILD" --target client -j"$(nproc)"
 CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_arm64.so" -o -name "client_android_arm64.so" | head -1)
 if [ -n "$CLIENT_SO" ]; then
@@ -762,6 +773,14 @@ if [ -n "$CLIENT_SO" ]; then
   echo "   client -> $(ls -l "$OUT/lib/arm64-v8a/libclient_android_arm64.so" | awk '{print $5}') bytes"
 else
   echo "WARN: client lib not found, skipping"
+fi
+cmake --build "$CLIENT_BUILD" --target xashmenu -j"$(nproc)"
+MENU_SO=$(find "$CLIENT_BUILD" -name "libmenu*.so" | head -1)
+if [ -n "$MENU_SO" ]; then
+  cp "$MENU_SO" "$OUT/lib/arm64-v8a/libmenu_android_arm64.so"
+  echo "   menu -> $(ls -l "$OUT/lib/arm64-v8a/libmenu_android_arm64.so" | awk '{print $5}') bytes"
+else
+  echo "WARN: menu lib not found, skipping"
 fi
 
 # ----------------------------------------------------------------- plugins

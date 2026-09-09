@@ -357,15 +357,20 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 	bool drawn[MAX_PLAYERS + 1];
 	memset( drawn, 0, sizeof( drawn ) );
 
+	// HUD glyphs are fixed-size, so the numeric columns use fixed pixel offsets
+	// (right->left) instead of XRES-scaled ones: on high-res screens scaled
+	// offsets pushed the columns apart and crushed the name area to nothing.
 	const int pad = max( XRES( 8 ), 8 );
 	const int rowAlpha = Scoreboard_CvarAlpha( m_pScoreboardRowAlpha, 34 );
 	const int rowTop = y + YRES( 24 );
 	const int rowBottom = y + tall - YRES( 8 );
-	const int attrX = x + wide - pad - XRES( 206 );
-	const int hpX = x + wide - pad - XRES( 172 );
-	const int moneyX = x + wide - pad - XRES( 132 );
-	const int killX = x + wide - pad - XRES( 78 );
-	const int deathX = x + wide - pad - XRES( 43 );
+	const int pingX  = x + wide - pad;
+	const int deathX = pingX - 18;
+	const int killX  = deathX - 22;
+	const int moneyX = killX - 44;
+	const int hpX    = moneyX - 30;
+	const int attrX  = hpX - 58;
+	const int nameMaxX = attrX - 6;
 	int row = 0;
 
 	if ( teamnumber != TEAM_SPECTATOR )
@@ -426,13 +431,13 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 		g *= colors[1];
 		b *= colors[2];
 
-		Scoreboard_DrawTextShadow( x + pad + nameoffset, ypos, x + wide - XRES( 235 ), g_PlayerInfoList[bestPlayer].name, r, g, b );
+		Scoreboard_DrawTextShadow( x + pad + nameoffset, ypos, nameMaxX, g_PlayerInfoList[bestPlayer].name, r, g, b );
 
 		if ( teamnumber != TEAM_SPECTATOR )
 		{
 			if( cl_showplayerversion && cl_showplayerversion->value != 0.0f )
 			{
-				Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - XRES( 130 ), gEngfuncs.PlayerInfo_ValueForKey( bestPlayer, "cscl_ver" ), r, g, b );
+				Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - 64, gEngfuncs.PlayerInfo_ValueForKey( bestPlayer, "cscl_ver" ), r, g, b );
 			}
 			else
 			{
@@ -447,14 +452,14 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 						SPR_DrawAdditive( 0, attrX - iconW, ypos + ( ROW_GAP - iconH ) / 2, &rect );
 					}
 					else
-						Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - XRES( 130 ), Localize( "#Cstrike_DEAD" ), r, g, b );
+						Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - 64, Localize( "#Cstrike_DEAD" ), r, g, b );
 				}
 				else if( g_PlayerExtraInfo[bestPlayer].has_c4 )
-					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - XRES( 130 ), Localize( "#Cstrike_BOMB" ), r, g, b );
+					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - 64, Localize( "#Cstrike_BOMB" ), r, g, b );
 				else if( g_PlayerExtraInfo[bestPlayer].vip )
-					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - XRES( 130 ), Localize( "#Cstrike_VIP" ), r, g, b );
+					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - 64, Localize( "#Cstrike_VIP" ), r, g, b );
 				else if( g_PlayerExtraInfo[bestPlayer].has_defuse_kit )
-					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - XRES( 130 ), Localize( "#Cstrike_DEFUSE_KIT" ), r, g, b );
+					Scoreboard_DrawReverseTextShadow( attrX, ypos, attrX - 64, Localize( "#Cstrike_DEFUSE_KIT" ), r, g, b );
 			}
 
 			if ( g_PlayerExtraInfo[bestPlayer].sb_health >= 0 && !g_PlayerExtraInfo[bestPlayer].dead )
@@ -463,7 +468,7 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 				{
 					static char buf[64];
 					sprintf( buf, "%d", g_PlayerExtraInfo[bestPlayer].sb_health );
-					Scoreboard_DrawReverseTextShadow( hpX, ypos, hpX - XRES( 50 ), buf, r, g, b );
+					Scoreboard_DrawReverseTextShadow( hpX, ypos, hpX - 40, buf, r, g, b );
 				}
 			}
 
@@ -473,7 +478,7 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 				{
 					static char buf[64];
 					sprintf( buf, "$%d", g_PlayerExtraInfo[bestPlayer].sb_account );
-					Scoreboard_DrawReverseTextShadow( moneyX, ypos, moneyX - XRES( 70 ), buf, r, g, b );
+					Scoreboard_DrawReverseTextShadow( moneyX, ypos, moneyX - 72, buf, r, g, b );
 				}
 			}
 
@@ -487,12 +492,12 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 			( value = gEngfuncs.PlayerInfo_ValueForKey( bestPlayer, "*bot" ) ) &&
 			atoi( value ) > 0 )
 		{
-			Scoreboard_DrawReverseTextShadow( x + wide - pad, ypos, x + wide - pad - XRES( 50 ), "BOT", r, g, b );
+			Scoreboard_DrawReverseTextShadow( x + wide - pad, ypos, deathX - 4, "BOT", r, g, b );
 		}
 		else
 		{
 			sprintf( pingBuf, "%d", g_PlayerInfoList[bestPlayer].ping );
-			Scoreboard_DrawReverseTextShadow( x + wide - pad, ypos, x + wide - pad - XRES( 50 ), pingBuf, r, g, b );
+			Scoreboard_DrawReverseTextShadow( x + wide - pad, ypos, deathX - 4, pingBuf, r, g, b );
 		}
 
 		row++;

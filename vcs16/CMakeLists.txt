@@ -72,9 +72,21 @@ endif()
 
 if(BUILD_MAINUI)
 #	set(CS16CLIENT ON)
-	# set(XASH_SDK ../../)
+	set(XASH_SDK "${CMAKE_CURRENT_SOURCE_DIR}")
+	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/public")
+	add_definitions(-include "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mainui_config.h")
 	set(MAINUI_RENDER_PICBUTTON_TEXT ON)
 	add_subdirectory(3rdparty/mainui_cpp)
+	# mainui's CMakeLists does not list the MiniUTL sources it links against
+	# (bitstring/generichash backends); without them the shared lib fails to link.
+	target_sources(xashmenu PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/bitstring.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/generichash.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/ipv6text.c
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/strtools.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/utlbuffer.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mainui_cpp/miniutl/utlstring.cpp
+	)
 endif()
 
 set(GRAPHS_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/graphs")
