@@ -113,9 +113,9 @@ jobs:
         run: |
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           BZIP="$GITHUB_WORKSPACE/amxx-bundle.zip"
-          # amxxpc compiler
-          unzip -p "$BZIP" compiler/amxxpc > android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
-          unzip -p "$BZIP" compiler/amxxpc32.so > android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
+          # amxxpc compiler (produced by build-amxx.sh; no longer inside the bundle)
+          cp "$GITHUB_WORKSPACE/build-out/compiler/amxxpc" android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+          cp "$GITHUB_WORKSPACE/build-out/compiler/amxxpc32.so" android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
           chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
           # AMXX modules — CS16Client loads them via nativeLibraryDir dlopen
           for so in $(unzip -l "$BZIP" | grep 'lib/arm64-v8a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
