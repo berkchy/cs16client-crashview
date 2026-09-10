@@ -1,0 +1,72 @@
+diff --git a/public/HLTypeConversion.h b/public/HLTypeConversion.h
+index e376462..6ac375c 100644
+--- a/public/HLTypeConversion.h
++++ b/public/HLTypeConversion.h
+@@ -157,7 +157,18 @@ class HLTypeConversion
+ 
+ 		int cbase_to_id(void *cbase)
+ 		{
+-			return entvars_to_id(cbase_to_entvar(cbase));
++			if (!cbase)
++			{
++				return -1;
++			}
++
++			int id = entvars_to_id(cbase_to_entvar(cbase));
++			if (id >= 0)
++			{
++				return id;
++			}
++
++			return scan_entity_id(cbase);
+ 		}
+ 
+ 	public:
+@@ -174,7 +185,7 @@ class HLTypeConversion
+ 			auto pev = VARS(m_FirstEdict);
+ 			auto privateData = reinterpret_cast<byte*>(m_FirstEdict->pvPrivateData);
+ 
+-			for (size_t i = 0; i < 0xFFF; ++i)
++			for (size_t i = 0; i < 0xFFFF; ++i)
+ 			{
+ 				if (*reinterpret_cast<entvars_t**>(privateData + i) == pev)
+ 				{
+@@ -186,6 +197,38 @@ class HLTypeConversion
+ 			m_PevOffset = 0; // This should not happen.
+ 		}
+ 
++		/* Fallback for arm64 mods whose CBaseEntity layout puts the pev
++		 * pointer beyond search_pev()'s scan window (or omits it from the
++		 * worldspawn private data entirely). When the pev chain fails,
++		 * derive the entity index straight from the entity table by matching
++		 * the private data pointer. */
++		int scan_entity_id(void *cbase)
++		{
++			if (!cbase || !gpGlobals || !m_FirstEdict)
++			{
++				return -1;
++			}
++
++			auto maxEntities = gpGlobals->maxEntities;
++
++			if (maxEntities <= 0 || maxEntities > 0x4000)
++			{
++				return -1;
++			}
++
++			for (int i = 0; i < maxEntities; ++i)
++			{
++				auto pEdict = m_FirstEdict + i;
++
++				if (pEdict->pvPrivateData == cbase)
++				{
++					return i;
++				}
++			}
++
++			return -1;
++		}
++
+ 	private:
+ 
+ 		edict_t* m_FirstEdict;

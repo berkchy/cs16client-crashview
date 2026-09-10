@@ -106,6 +106,7 @@ apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
+apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
 # Runtime translation of legacy 32-bit pdata offsets to the measured arm64
 # ReGameDLL layout (see patch header for how the tables are regenerated).
 apply_patch "$PATCHES/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
