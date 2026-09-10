@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +59,6 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
     val missing = addonFiles.count { !it.installed }
     val outdated = addonFiles.count { it.installed && it.outdated }
-    val stale = missing + outdated
     val total = addonFiles.size
     val installed = addonFiles.count { it.installed && !it.outdated }
 
@@ -111,7 +109,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
             AppCard {
                 if (total == 0) {
                     Text(
-                        "No bundle loaded. Load a bundle on the Patch tab first, then come back.",
+                        "Addons ship separately from the mod bundle.\nTap \"Download & Install\" below to fetch and install them into your game directory.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Gray40,
                     )
@@ -205,43 +203,30 @@ fun AddonsScreen(vm: PatcherViewModel) {
                     ActivityResultContracts.StartActivityForResult()
                 ) { result ->
                     if (result.resultCode == android.app.Activity.RESULT_OK) {
-                        if (stale > 0) vm.installAddonsFromBundle()
+                        vm.fetchAndInstallAddons()
                     }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PrimaryButton(
-                        text = if (stale > 0) "Install / Update ($stale)" else "Rescan",
+                        text = "Download & Install Addons",
                         onClick = {
-                            if (stale > 0) {
-                                val hasPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                    Environment.isExternalStorageManager()
-                                } else true
-                                if (hasPerm) {
-                                    vm.installAddonsFromBundle()
-                                } else {
-                                    val intent = android.content.Intent(
-                                        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                        android.net.Uri.parse("package:${context.packageName}")
-                                    )
-                                    permLauncher.launch(intent)
-                                }
+                            val hasPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                Environment.isExternalStorageManager()
+                            } else true
+                            if (hasPerm) {
+                                vm.fetchAndInstallAddons()
                             } else {
-                                vm.scanAddonsStatus()
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                )
+                                permLauncher.launch(intent)
                             }
                         },
                         icon = {
-                            Icon(
-                                if (stale > 0) Icons.Filled.FolderOpen else Icons.Filled.Refresh,
-                                null,
-                                modifier = Modifier.size(18.dp),
-                            )
+                            Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp))
                         },
-                        modifier = Modifier.weight(1f),
-                    )
-                    SecondaryButton(
-                        text = "Download Latest",
-                        onClick = { vm.fetchAndInstallAddons() },
                         modifier = Modifier.weight(1f),
                     )
                 }

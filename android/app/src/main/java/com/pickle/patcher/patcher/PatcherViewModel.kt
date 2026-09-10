@@ -284,47 +284,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Legacy entry point (Patch tab / Addons Manager). Addons no longer ship
+     * inside the mod bundle — they are a separate amxx-addons.zip release
+     * asset — so installing always fetches the latest addons package.
+     */
     fun installAddonsFromBundle() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _addons.value = AddonsState.Downloading(0f, "Preparing addons…")
-            try {
-                val target = File(_installPath.value)
-                val bundle = loadedBundle ?: bundleProvider.loadEmbedded() ?: bundleProvider.loadCachedBundle()
-                    ?: throw IOException("No bundle available — load or download a bundle first.")
-                var installed = 0
-                var updated = 0
-                var skipped = 0
-                for (entry in bundle.manifest.entries) {
-                    if (!entry.target.startsWith("addons/")) continue
-                    val content = bundle.resolveEntry(entry) ?: continue
-                    val outFile = File(target, entry.target)
-                    if (outFile.exists()) {
-                        val same = try {
-                            outFile.length() == content.size.toLong() &&
-                                outFile.readBytes().contentEquals(content)
-                        } catch (_: Throwable) {
-                            false
-                        }
-                        if (same) {
-                            skipped++
-                            continue
-                        }
-                        outFile.writeBytes(content)
-                        updated++
-                    } else {
-                        outFile.parentFile?.mkdirs()
-                        outFile.writeBytes(content)
-                        installed++
-                    }
-                }
-                _addons.value = AddonsState.Done(
-                    "Installed: $installed  ·  Updated: $updated  ·  Up to date: $skipped"
-                )
-                scanAddonsStatus()
-            } catch (t: Throwable) {
-                _addons.value = AddonsState.Error(t.message ?: "Unknown error")
-            }
-        }
+        fetchAndInstallAddons()
     }
 
     private fun unzipInto(zip: File, target: File): Int {

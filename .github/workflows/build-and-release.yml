@@ -69,8 +69,7 @@ jobs:
             "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a" \
             "$GITHUB_WORKSPACE/amxx-bundle.zip" \
             "$GITHUB_WORKSPACE/build-out/plugins" \
-            "$GITHUB_WORKSPACE/amxx-plugins.zip" \
-            "$GITHUB_WORKSPACE/addons"
+            "$GITHUB_WORKSPACE/amxx-plugins.zip"
           cd "$GITHUB_WORKSPACE"
           zip -r amxx-addons.zip addons/ -x '*.git*'
 
