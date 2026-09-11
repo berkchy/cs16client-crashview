@@ -1,0 +1,19 @@
+diff --git a/amxmodx/modules.cpp b/amxmodx/modules.cpp
+--- a/amxmodx/modules.cpp
++++ b/amxmodx/modules.cpp
+@@ -808,7 +808,13 @@
+ 	auto length = ke::path::Format(path, PLATFORM_MAX_PATH, "%s/%s_amxx", orig_path, tmpname);
+ 
+ #if defined PLATFORM_LINUX
+-# if defined AMD64 || PAWN_CELL_SIZE == 64
++# if defined(__arm__) && !defined(__aarch64__)
++	/* 32-bit ARM: tag module files "_arm". The "amd64" label above only
++	 * means 64-bit AMXX cells, but on ARM32 it reads as an x86-64 build,
++	 * so cs16client names ARM32 modules "_arm" and keeps "_amd64" for
++	 * LP64 targets (arm64/x86_64) where it also matches the ISA. */
++	length += strncopy(path + length, "_arm", PLATFORM_MAX_PATH - length);
++# elif defined AMD64 || PAWN_CELL_SIZE == 64
+ 	length += strncopy(path + length, "_amd64", PLATFORM_MAX_PATH - length);
+ # else
+ 	length += ke::SafeSprintf(path + length, PLATFORM_MAX_PATH - length, "_i%c86", iDigit);
+

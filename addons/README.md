@@ -20,9 +20,9 @@ APK; the engine resolves "@addons/..." references against the APK's lib/arm64
 directory. This tree supplies everything data/config driven:
   - addons/metamod/   metamod config (config.ini + plugins.ini) that tells
                       the APK-side loader to chain AMXX
-  - addons/amxmodx/   AMXX 1.10 configs, language dictionaries, arm64
-                      modules (*_amxx_amd64.so), plugins, scripting/amxxpc
-                      compiler, and runtime logs dir
+  - addons/amxmodx/   AMXX 1.10 configs, language dictionaries, modules
+                      (*_amxx_amd64.so; *_amxx_arm.so on arm32), plugins,
+                      scripting/amxxpc compiler, and runtime logs dir
 
 Editing this tree never needs an APK rebuild; swapping the AMXX core or
 modules does.

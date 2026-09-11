@@ -77,8 +77,9 @@ object ApkPatcher {
         val arscAligned = arsc != null && (arsc.dataOffset % 4) == 0L
         val abi = request.keepAbi ?: "arm64-v8a"
         val abiPrefix = "lib/$abi/lib"
-        val modules = repack.added.filter { it.startsWith(abiPrefix) && it.endsWith("_amxx_amd64.so") }
-            .plus(request.bundle.manifest.entries.map { it.target }.filter { it.startsWith(abiPrefix) && it.endsWith("_amxx_amd64.so") })
+        val modSuffix = if (abi == "armeabi-v7a") "_amxx_arm.so" else "_amxx_amd64.so"
+        val modules = repack.added.filter { it.startsWith(abiPrefix) && it.endsWith(modSuffix) }
+            .plus(request.bundle.manifest.entries.map { it.target }.filter { it.startsWith(abiPrefix) && it.endsWith(modSuffix) })
             .distinct()
 
         // sanity: align ALL stored entries of output

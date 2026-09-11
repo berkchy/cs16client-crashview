@@ -159,7 +159,7 @@ jobs:
             cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so 2>/dev/null || true
             cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc32.so" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc32.so 2>/dev/null || true
             chmod +x android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so 2>/dev/null || true
-            for so in $(unzip -l "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" | grep 'lib/armeabi-v7a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
+            for so in $(unzip -l "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" | grep 'lib/armeabi-v7a/lib.*_amxx_arm.so' | awk '{print $NF}'); do
               name=$(basename "$so")
               unzip -p "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" "$so" > "android/app/src/main/jniLibs/armeabi-v7a/$name"
               chmod +x "android/app/src/main/jniLibs/armeabi-v7a/$name"

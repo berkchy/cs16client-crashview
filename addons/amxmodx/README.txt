@@ -15,7 +15,8 @@ addons/amxmodx/
               amxx.cfg ...)
   data/lang/  language dictionaries (stock AMXX dictionaries)
   modules/    AMXX C++ modules (aarch64). The 64-bit-cell core loads
-              <name>_amxx_amd64.so from here. Only engine, fakemeta and
+              <name>_amxx_amd64.so from here (the arm32 build uses
+              <name>_amxx_arm.so; see modules.ini). Only engine, fakemeta and
               cstrike are enabled in modules.ini; the rest are shipped but
               commented out.
   plugins/    compiled plugins (*.amxx, 64-bit cell bytecode)
@@ -59,4 +60,5 @@ History notes for this build
   rejected.
 - This fork ships no LoadLangFile/%L (plugin-side dictionaries only) and no
   CreateForward (use CreateMultiForward). Its has_flag() takes flag strings.
-- Modules are named *_amxx_amd64.so and come from this tree at runtime.
+- Modules are named *_amxx_amd64.so (LP64 ABIs) / *_amxx_arm.so (arm32)
+  and come from this tree at runtime.

@@ -23,10 +23,11 @@ MODULES = [
     "hamsandwich", "json", "nvault", "reapi", "regex", "sockets", "sqlite",
 ]
 
-# ABI -> (android runtime lib suffix, canonical bundle asset name)
+# ABI -> (android runtime lib suffix, AMXX module suffix, canonical bundle asset name)
+# Module suffix: "amd64" upstream = 64-bit cells (LP64 ABIs), "arm" = ARM32.
 ABI_MAP = {
-    "arm64-v8a": ("arm64", "amxx-bundle.zip"),
-    "armeabi-v7a": ("arm", "amxx-bundle-armeabi-v7a.zip"),
+    "arm64-v8a": ("arm64", "amd64", "amxx-bundle.zip"),
+    "armeabi-v7a": ("arm", "arm", "amxx-bundle-armeabi-v7a.zip"),
 }
 
 
@@ -37,7 +38,7 @@ def main():
     if abi not in ABI_MAP:
         print(f"unsupported ABI: {abi} (expected {', '.join(ABI_MAP)})", file=sys.stderr)
         sys.exit(1)
-    suffix = ABI_MAP[abi][0]
+    suffix, mod_suffix, _bundle_name = ABI_MAP[abi]
 
     abidir = f"lib/{abi}"
 
@@ -105,11 +106,12 @@ def main():
             "description": "CS16Client main menu (text banners/buttons)",
         })
     for mod in MODULES:
-        p = os.path.join(libdir, f"lib{mod}_amxx_amd64.so")
+        modname = f"lib{mod}_amxx_{mod_suffix}.so"
+        p = os.path.join(libdir, modname)
         if os.path.exists(p):
             entries.append({
-                "source": f"{abidir}/lib{mod}_amxx_amd64.so",
-                "target": f"{abidir}/lib{mod}_amxx_amd64.so",
+                "source": f"{abidir}/{modname}",
+                "target": f"{abidir}/{modname}",
                 "method": "STORED",
                 "required": True,
                 "description": f"{mod} module",

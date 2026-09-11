@@ -14,7 +14,7 @@
 # Produces (with ABI's shard dir this run builds into):
 #   $OUT/lib/$ABI/libamxmodx.so
 #   $OUT/lib/$ABI/libmetamod.so
-#   $OUT/lib/$ABI/lib<name>_amxx_amd64.so                   (modules)
+#   $OUT/lib/$ABI/lib<name>_amxx_$MOD_SUFFIX.so               (modules; _amd64 on LP64 ABIs, _arm on ARM32)
 #   $OUT/compiler/$ABI/amxxpc[.so]                          (on-device compiler)
 #   $OUT/plugins/*.amxx                                     (64-bit cells, from plugins-src)
 #
@@ -116,6 +116,11 @@ apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-fun-strip-user-weapons.diff"  "$SRC/amxmodx"
+# AMXX module file suffix: "amd64" upstream means "64-bit cells" (applies to
+# every PAWN_CELL_SIZE=64 build, ARM included), but on ARM32 that name reads as
+# an x86-64 binary. Name ARM32 modules "_arm" (arm64 keeps "_amd64" so it also
+# matches the ISA); the loader suffix logic must stay in sync with the CI build.
+apply_patch "$PATCHES/amxmodx-module-suffix-arm.patch"      "$SRC/amxmodx"
 # Runtime translation of legacy 32-bit pdata offsets to the measured arm64
 # ReGameDLL layout (see patch header for how the tables are regenerated).
 apply_patch "$PATCHES/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
@@ -244,12 +249,16 @@ case "$ABI" in
     SYSROOT_ARCH=aarch64-linux-android
     PCRE_HOST=aarch64-linux-android
     RUNTIME_SUFFIX=arm64
+    MOD_SUFFIX=amd64
     ;;
   armeabi-v7a)
     TARGET=armv7a-linux-androideabi24
     SYSROOT_ARCH=arm-linux-androideabi
     PCRE_HOST=arm-linux-androideabi
     RUNTIME_SUFFIX=arm
+    # ARM32 AMXX modules are named "_arm" (not "_amd64"): the loader suffix
+    # logic in the amxmodx-module-suffix-arm patch mirrors this.
+    MOD_SUFFIX=arm
     ;;
   *)
     echo "unsupported ABI: $ABI (expected arm64-v8a or armeabi-v7a)" >&2
@@ -572,8 +581,8 @@ build_module() {
       compile_one "mod-$name" "$M/$f" "$MOD_INC $extra_inc" "$extra_defs"
     fi
   done
-  relink "$OUT/lib/$ABI/lib$name"_amxx_amd64.so "$TMP/mod-$name"/*.o
-  echo "   $name -> $(ls -l "$OUT/lib/$ABI/lib$name"_amxx_amd64.so | awk '{print $5}') bytes"
+  relink "$OUT/lib/$ABI/lib$name"_amxx_$MOD_SUFFIX.so "$TMP/mod-$name"/*.o
+  echo "   $name -> $(ls -l "$OUT/lib/$ABI/lib$name"_amxx_$MOD_SUFFIX.so | awk '{print $5}') bytes"
 }
 
 P="$AMXX/public"
@@ -635,7 +644,7 @@ build_module hamsandwich hamsandwich "" "-DHAVE_STDINT_H" \
   "pdata.cpp" "hook_specialbot.cpp"
 
 # link regex against freshly built pcre
-"$CXX" -fPIC -O2 -shared -nostdlib++ -o "$OUT/lib/$ABI/libregex_amxx_amd64.so" \
+"$CXX" -fPIC -O2 -shared -nostdlib++ -o "$OUT/lib/$ABI/libregex_amxx_$MOD_SUFFIX.so" \
   "$TMP"/mod-regex/*.o "$cmd_shim" "$PCRE_A" \
   -Wl,--wrap=__assert2 -Wl,--wrap=__assert_fail \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
@@ -808,11 +817,11 @@ for f in "$REAPI"/src/*.cpp "$REAPI"/src/natives/*.cpp "$REAPI"/src/mods/*.cpp \
   "$CXX" $REAPI_BASEFLAGS -c "$f" -o "$TMP/mod-reapi/$bn.o"
   REAPI_SRCS="$REAPI_SRCS $TMP/mod-reapi/$bn.o"
 done
-"$CXX" -shared -o "$OUT/lib/$ABI/libreapi_amxx_amd64.so" $REAPI_SRCS \
+"$CXX" -shared -o "$OUT/lib/$ABI/libreapi_amxx_$MOD_SUFFIX.so" $REAPI_SRCS \
   -static-libstdc++ -static-libgcc \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
   "$SYSROOT_LIB/libc++abi.a" -ldl -lm
-echo "   reapi -> $(ls -l "$OUT/lib/$ABI/libreapi_amxx_amd64.so" | awk '{print $5}') bytes"
+echo "   reapi -> $(ls -l "$OUT/lib/$ABI/libreapi_amxx_$MOD_SUFFIX.so" | awk '{print $5}') bytes"
 
 # ------------------------------------------------------------------- yapb
 # YaPB bot (yapb/yapb) — metamod plugin, CMake-based.

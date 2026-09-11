@@ -49,7 +49,9 @@ CI checks it out and folds it into the bundle.
 The bundle manifest (`bundle.json`) drives the patcher:
 
 - `lib/arm64-v8a/libamxmodx.so`, `libmetamod.so`, 11 module libraries
-  (`lib<cstrike|csx|engine|fakemeta|fun|geoip|json|nvault|regex|sockets|sqlite>_amxx_amd64.so`) —
+  (`lib<cstrike|csx|engine|fakemeta|fun|geoip|json|nvault|regex|sockets|sqlite>_amxx_amd64.so`,
+  or `_amxx_arm.so` on the arm32/armeabi-v7a bundle; the suffix is the module's
+  "64-bit cells" tag on LP64 ABIs, and `_arm` on ARM32) —
   written **STORED** and **16 KB-aligned** (Android 15+ / 16 KB-page devices).
 - `addons/**` — full AMXX config tree (configs, gamedata, plugins) written DEFLATED, so the game
   loadout appears out of the box without manual file installs.
