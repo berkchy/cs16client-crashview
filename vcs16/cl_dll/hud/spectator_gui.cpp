@@ -131,19 +131,6 @@ void CHudSpectatorGui::Shutdown()
 	gRenderAPI.GL_FreeTexture( m_hArrowRight );
 }
 
-inline void DrawButtonWithText( int x1, int y1, int wide, int tall, const char *sz, int r, int g, int b, bool highlight = false )
-{
-	DrawUtils::DrawRectangle(x1, y1, wide, tall);
-
-	if ( highlight )
-	{
-		FillRGBABlend(x1, y1, wide, tall, r, g, b, 48);
-	}
-
-	DrawUtils::DrawHudString(x1 + INT_XPOS(0.5), y1 + tall*0.5 - gHUD.GetCharHeight() * 0.5, x1 + wide, sz,
-							 r, g, b );
-}
-
 // Unified icon drawing helper. align: -1 = left, 0 = center, 1 = right
 static void DrawIconOnButton( int x1, int y1, int wide, int tall, int hTex, int align = -1, int r = 255, int g = 255, int b = 255, float alpha = 1.0f, int pad = 15 )
 {
@@ -176,7 +163,7 @@ static void DrawIconOnButton( int x1, int y1, int wide, int tall, int hTex, int 
 						   (quadY + (float)uploadH) * gHUD.m_flScale );
 }
 
-static void ParseSpecColor( cvar_t *pCvar, int *or, int *og, int *ob )
+static void ParseSpecColor( cvar_t *pCvar, int *cr, int *og, int *ob )
 {
 	if ( !pCvar || !pCvar->string || !pCvar->string[0] )
 		return;
@@ -187,7 +174,7 @@ static void ParseSpecColor( cvar_t *pCvar, int *or, int *og, int *ob )
 		if ( tr > 255 ) tr = 255; else if ( tr < 0 ) tr = 0;
 		if ( tg > 255 ) tg = 255; else if ( tg < 0 ) tg = 0;
 		if ( tb > 255 ) tb = 255; else if ( tb < 0 ) tb = 0;
-		*or = tr;
+		*cr = tr;
 		*og = tg;
 		*ob = tb;
 	}
