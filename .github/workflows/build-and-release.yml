@@ -82,6 +82,7 @@ jobs:
         shell: bash
         run: |
           RELEASE_VERSION="$BUNDLE_VERSION" python3 ./android/ci/gen-bundle.py \
+            arm64-v8a \
             "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a" \
             "$GITHUB_WORKSPACE/amxx-bundle.zip" \
             "$GITHUB_WORKSPACE/build-out/plugins" \
@@ -89,6 +90,7 @@ jobs:
           if [ ! -f "$GITHUB_WORKSPACE/v7a-missing" ] && \
               [ -f "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a/libamxmodx.so" ]; then
             RELEASE_VERSION="$BUNDLE_VERSION" python3 ./android/ci/gen-bundle.py \
+              armeabi-v7a \
               "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a" \
               "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip"
           else

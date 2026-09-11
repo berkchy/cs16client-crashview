@@ -709,7 +709,14 @@ cat > "$REAPI/version/appversion.h" << 'APPVER'
 #endif //__APPVERSION_H__
 APPVER
 echo "   created appversion.h"
-# Fix unqualified min() call and ULONG/size_t dedup for ARM64
+# Fix unqualified min() call and ULONG/size_t dedup for ARM64.
+# These patches edit the SHARED $SRC tree in place. The CI loop runs this script
+# once per ABI (arm64-v8a then armeabi-v7a) against the same checked-out tree,
+# so the patch must be idempotent: the getFwdParamType overload injection
+# re-injects a duplicate template on the second run (redefinition error).
+# A marker makes the whole block a no-op after the first application.
+REAPI_PATCHED="$REAPI/.reapi-abi-patched"
+if [ ! -f "$REAPI_PATCHED" ]; then
 python3 -c "
 import os, sys, re
 reapi = sys.argv[1]
@@ -779,6 +786,8 @@ if os.path.exists(p):
     print('   removed stdc++compat.cpp (not needed on Android)')
 print('   patched reapi sources for ARM64')
 " "$REAPI"
+touch "$REAPI_PATCHED"
+fi
 REAPI_BASEFLAGS="-std=c++14 -O2 -fPIC -fpermissive -w \
   -D_LINUX -DLINUX -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=0 \
   -DHAVE_STRONG_TYPEDEF -D_stricmp=strcasecmp -D_strnicmp=strncasecmp \
