@@ -28,6 +28,7 @@ version.
 */
 
 #include <string.h>
+#include <math.h>
 
 #include "hud.h"
 #include "cl_util.h"
@@ -36,6 +37,13 @@ version.
 #include "vgui_parser.h"
 #include "triangleapi.h"
 #include "draw_util.h"
+
+// global fade-in factor for the spectator HUD, set each Draw tick
+static float g_flSpecFade = 1.0f;
+
+// customization cvars
+static cvar_t *cl_spec_ui_color;
+static cvar_t *cl_spec_bar_alpha;
 
 /*
  * We will draw all elements inside a box. It's size 16x10.
@@ -86,6 +94,12 @@ int CHudSpectatorGui::Init()
 	m_iFlags = HUD_DRAW;
 	m_menuFlags = 0;
 	m_hTimerTexture = 0;
+
+	m_flFadeProgress = 0.0f;
+	m_bWasSpectating = false;
+
+	cl_spec_ui_color = CVAR_CREATE( "cl_spec_ui_color", "255 140 0", FCVAR_ARCHIVE );
+	cl_spec_bar_alpha = CVAR_CREATE( "cl_spec_bar_alpha", "153", FCVAR_ARCHIVE );
 	return 1;
 }
 
@@ -162,6 +176,127 @@ static void DrawIconOnButton( int x1, int y1, int wide, int tall, int hTex, int 
 						   (quadY + (float)uploadH) * gHUD.m_flScale );
 }
 
+static void ParseSpecColor( cvar_t *pCvar, int *or, int *og, int *ob )
+{
+	if ( !pCvar || !pCvar->string || !pCvar->string[0] )
+		return;
+
+	int tr, tg, tb;
+	if ( sscanf( pCvar->string, "%d %d %d", &tr, &tg, &tb ) == 3 )
+	{
+		if ( tr > 255 ) tr = 255; else if ( tr < 0 ) tr = 0;
+		if ( tg > 255 ) tg = 255; else if ( tg < 0 ) tg = 0;
+		if ( tb > 255 ) tb = 255; else if ( tb < 0 ) tb = 0;
+		*or = tr;
+		*og = tg;
+		*ob = tb;
+	}
+}
+
+static void Spec_DrawRoundedBox( int x, int y, int wide, int tall, int rad, int r, int g, int b, int a )
+{
+	if ( wide <= 0 || tall <= 0 )
+		return;
+
+	if ( rad < 1 )
+	{
+		FillRGBABlend( x, y, wide, tall, r, g, b, a );
+		return;
+	}
+
+	rad = min( rad, wide / 2 );
+	rad = min( rad, tall / 2 );
+
+	for ( int dy = 0; dy < rad; dy++ )
+	{
+		int dist = rad - dy;
+		int halfW = (int)( sqrtf( (float)rad * rad - (float)dist * dist ) + 0.5f );
+		int skip = rad - halfW;
+
+		if ( wide - skip * 2 > 0 )
+		{
+			FillRGBABlend( x + skip, y + dy, wide - skip * 2, 1, r, g, b, a );
+			FillRGBABlend( x + skip, y + tall - 1 - dy, wide - skip * 2, 1, r, g, b, a );
+		}
+	}
+
+	if ( tall - rad * 2 > 0 )
+		FillRGBABlend( x, y + rad, wide, tall - rad * 2, r, g, b, a );
+}
+
+static void Spec_DrawRoundedOutline( int x, int y, int wide, int tall, int rad, int r, int g, int b, int a )
+{
+	if ( rad < 1 )
+	{
+		FillRGBABlend( x, y, wide, tall, r, g, b, a );
+		return;
+	}
+
+	rad = min( rad, wide / 2 );
+	rad = min( rad, tall / 2 );
+
+	for ( int dy = 0; dy < rad; dy++ )
+	{
+		int dist = rad - dy;
+		int halfW = (int)( sqrtf( (float)rad * rad - (float)dist * dist ) + 0.5f );
+		int skip = rad - halfW;
+
+		FillRGBABlend( x + skip, y + dy, 1, 1, r, g, b, a );
+		FillRGBABlend( x + wide - 1 - skip, y + dy, 1, 1, r, g, b, a );
+		FillRGBABlend( x + skip, y + tall - 1 - dy, 1, 1, r, g, b, a );
+		FillRGBABlend( x + wide - 1 - skip, y + tall - 1 - dy, 1, 1, r, g, b, a );
+	}
+
+	if ( wide - rad * 2 > 0 )
+	{
+		FillRGBABlend( x + rad, y, wide - rad * 2, 1, r, g, b, a );
+		FillRGBABlend( x + rad, y + tall - 1, wide - rad * 2, 1, r, g, b, a );
+	}
+
+	if ( tall - rad * 2 > 0 )
+	{
+		FillRGBABlend( x, y + rad, 1, tall - rad * 2, r, g, b, a );
+		FillRGBABlend( x + wide - 1, y + rad, 1, tall - rad * 2, r, g, b, a );
+	}
+}
+
+inline void DrawButtonWithText( int x1, int y1, int wide, int tall, const char *sz, int r, int g, int b, bool highlight = false )
+{
+	int rad = INT_YPOS( 0.35 );
+	if ( rad > (int)( tall * 0.4f ) ) rad = (int)( tall * 0.4f );
+	if ( rad < 2 ) rad = 2;
+
+	int fillAlpha = highlight ? 96 : 20;
+	int borderAlpha = highlight ? 200 : 60;
+
+	// subtle breathing pulse on the currently opened submenu button
+	if ( highlight )
+	{
+		float pulse = 0.5f + 0.5f * sin( (float)gEngfuncs.GetClientTime() * 4.0f );
+		fillAlpha = (int)( 70 + 40 * pulse );
+	}
+
+	fillAlpha = (int)( fillAlpha * g_flSpecFade );
+	borderAlpha = (int)( borderAlpha * g_flSpecFade );
+
+	Spec_DrawRoundedBox( x1, y1, wide, tall, rad, r, g, b, fillAlpha );
+	Spec_DrawRoundedOutline( x1, y1, wide, tall, rad, r, g, b, borderAlpha );
+
+	if ( highlight )
+	{
+		int tr = (int)( r * 0.35f + 255 * 0.65f );
+		int tg = (int)( g * 0.35f + 255 * 0.65f );
+		int tb = (int)( b * 0.35f + 255 * 0.65f );
+		DrawUtils::DrawHudString( x1 + INT_XPOS( 0.5 ), y1 + tall * 0.5f - gHUD.GetCharHeight() * 0.5f, x1 + wide, sz,
+								 tr, tg, tb );
+	}
+	else
+	{
+		DrawUtils::DrawHudString( x1 + INT_XPOS( 0.5 ), y1 + tall * 0.5f - gHUD.GetCharHeight() * 0.5f, x1 + wide, sz,
+								 r, g, b );
+	}
+}
+
 int CHudSpectatorGui::Draw( float flTime )
 {
 	if( !g_iUser1 )
@@ -171,13 +306,30 @@ int CHudSpectatorGui::Draw( float flTime )
 			UserCmd_ToggleSpectatorMenu(); // this will remove any submenus;
 			m_menuFlags = 0;
 		}
+		m_bWasSpectating = false;
+		m_flFadeProgress = 0.0f;
 		return 1;
 	}
+
+	// fade in the whole HUD when entering spectator mode
+	if( !m_bWasSpectating )
+	{
+		m_bWasSpectating = true;
+		m_flFadeProgress = 0.0f;
+	}
+	else if( m_flFadeProgress < 1.0f )
+	{
+		m_flFadeProgress += flTime / 0.35f;
+		if( m_flFadeProgress > 1.0f )
+			m_flFadeProgress = 1.0f;
+	}
+	g_flSpecFade = m_flFadeProgress;
 
 	// function name says it
 	CalcAllNeededData( );
 
 	int r = 255, g = 140, b = 0;
+	ParseSpecColor( cl_spec_ui_color, &r, &g, &b );
 
 	// at first, draw these silly black bars
 	int startpos = 0;
@@ -186,8 +338,19 @@ int CHudSpectatorGui::Draw( float flTime )
 		startpos = XRES(gHUD.m_Spectator.m_OverviewData.insetWindowWidth) + XRES(gHUD.m_Spectator.m_OverviewData.insetWindowX);
 		startpos *= ScreenWidth / TrueWidth; // hud_scale adjust
 	}
-	FillRGBABlend(startpos, 0, ScreenWidth - startpos, INT_YPOS(2), 0, 0, 0, 153);
-	FillRGBABlend(0, ScreenHeight - INT_YPOS(2), ScreenWidth, INT_YPOS(2), 0, 0, 0, 153);
+	int barAlpha = 153;
+	if( cl_spec_bar_alpha )
+		barAlpha = (int)cl_spec_bar_alpha->value;
+	if( barAlpha < 0 ) barAlpha = 0;
+	else if( barAlpha > 255 ) barAlpha = 255;
+	barAlpha = (int)( barAlpha * m_flFadeProgress );
+
+	FillRGBABlend(startpos, 0, ScreenWidth - startpos, INT_YPOS(2), 0, 0, 0, barAlpha);
+	FillRGBABlend(0, ScreenHeight - INT_YPOS(2), ScreenWidth, INT_YPOS(2), 0, 0, 0, barAlpha);
+
+	// accent divider lines under the top bar and over the bottom bar
+	FillRGBABlend( startpos, INT_YPOS(2) - 1, ScreenWidth - startpos, 1, r, g, b, (int)( 90 * m_flFadeProgress ) );
+	FillRGBABlend( 0, ScreenHeight - INT_YPOS(2), ScreenWidth, 1, r, g, b, (int)( 90 * m_flFadeProgress ) );
 
 	if ( gHUD.m_Spectator.m_drawstatus && gHUD.m_Spectator.m_drawstatus->value )
 	{
@@ -355,8 +518,17 @@ int CHudSpectatorGui::Draw( float flTime )
 	//{
 		int iLen = DrawUtils::HudStringLen( label.m_szNameAndHealth );
 		GetTeamColor( r, g, b, g_PlayerExtraInfo[ g_iUser2 ].teamnumber );
-		DrawUtils::DrawHudString( ScreenWidth * 0.5 - iLen * 0.5, INT_YPOS(9) - gHUD.GetCharHeight() * 0.5 , ScreenWidth,
-								  label.m_szNameAndHealth, r, g, b );
+		r = (int)( r * m_flFadeProgress );
+		g = (int)( g * m_flFadeProgress );
+		b = (int)( b * m_flFadeProgress );
+
+		int nameX = (int)( ScreenWidth * 0.5 - iLen * 0.5 );
+		int nameY = INT_YPOS(9) - gHUD.GetCharHeight() * 0.5;
+		int pillPad = gHUD.GetCharWidth('M');
+		int pillH = gHUD.GetCharHeight() + 8;
+		Spec_DrawRoundedBox( nameX - pillPad, nameY - 4, iLen + pillPad * 2, pillH,
+			pillH / 2, 0, 0, 0, (int)( 70 * m_flFadeProgress ) );
+		DrawUtils::DrawHudString( nameX, nameY, ScreenWidth, label.m_szNameAndHealth, r, g, b );
 	//}
 
 	return 1;
@@ -423,9 +595,12 @@ void CHudSpectatorGui::CalcAllNeededData( )
 		GetPlayerInfo( g_iUser2, &sInfo );
 
 		int iHealth = g_PlayerExtraInfo[g_iUser2].sb_health > 255 ? g_PlayerExtraInfo[g_iUser2].sb_health : g_PlayerExtraInfo[g_iUser2].health;
+		int iFrags = g_PlayerExtraInfo[g_iUser2].frags;
+		int iDeaths = g_PlayerExtraInfo[g_iUser2].deaths;
+		int iPing = sInfo.ping;
 
 		snprintf( label.m_szNameAndHealth, sizeof( label.m_szNameAndHealth ),
-				  "%s (%i)",  sInfo.name, iHealth );
+				  "%s (%i)  %i/%i  %ims",  sInfo.name, iHealth, iFrags, iDeaths, iPing );
 	}
 	else label.m_szNameAndHealth[0] = '\0';
 }

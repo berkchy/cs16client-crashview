@@ -55,8 +55,9 @@ After that, just install the APK and run.
 | cl_killfeed_smooth       | 1             | 0   | 1   | Smoothly animates killfeed entries (fade + slide).                                          |
 | cl_viewmodel_sway        | 0.5           | 0   | -   | Viewmodel sway amount (recoil/aim drift).                                                   |
 | cl_viewmodel_movebob     | 0.3           | 0   | -   | Viewmodel movement bob amount (weapon wag while moving).                                    |
-| cl_spec_ui_color         | "255 140 0"   | -   | -   | Spectator HUD UI color (RGB).                                                               |
-| cl_spec_bar_alpha        | 153           | 0   | 255 | Spectator HUD bar alpha (0-255).                                                            |
+| cl_spec_ui_color       | "255 140 0"   | -   | -   | Spectator HUD UI color (RGB).                                                             |
+| cl_spec_bar_alpha      | 153           | 0   | 255 | Spectator HUD bar alpha (0-255).                                                          |
+| cl_scrollview_glide    | 1             | 0   | 1   | Smooth eased glide of scroll views (0 to disable, 1 to enable).                           |
 
 ## Building
 Clone the source code:

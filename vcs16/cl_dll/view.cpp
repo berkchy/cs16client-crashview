@@ -8,6 +8,7 @@
 // view/refresh setup functions
 
 #include <string.h>
+#include <math.h>
 
 #include "hud.h"
 #include "pm_math.h"
@@ -82,6 +83,8 @@ cvar_t	*cl_waterdist;
 cvar_t	*cl_chasedist;
 cvar_t	*cl_weaponlag;
 cvar_t	*cl_quakeguns;
+cvar_t	*cl_viewmodel_sway;
+cvar_t	*cl_viewmodel_movebob;
 
 // These cvars are not registered (so users can't cheat), so set the ->value field directly
 // Register these cvars in V_Init() if needed for easy tweaking
@@ -676,6 +679,91 @@ void V_CalcViewModelLag( ref_params_t *pparams, Vector &origin, Vector &angles )
 	}
 }
 
+//==========================
+// V_CalcViewModelSway
+//==========================
+static void V_CalcViewModelSway( ref_params_t *pparams, float *origin, float *angles )
+{
+	static vec3_t g_vmSwayOffset = { 0, 0, 0 };
+	static vec3_t g_vmLastAngles = { 0, 0, 0 };
+
+	vec3_t forward, right, up;
+	AngleVectors( pparams->viewangles, forward, right, up );
+
+	// 1. Viewmodel sway - weapon shifts opposite to view rotation
+	if ( cl_viewmodel_sway && cl_viewmodel_sway->value > 0.0f )
+	{
+		vec3_t angleDelta;
+		for ( int i = 0; i < 3; i++ )
+		{
+			angleDelta[i] = pparams->viewangles[i] - g_vmLastAngles[i];
+			if ( angleDelta[i] > 180.0f ) angleDelta[i] -= 360.0f;
+			else if ( angleDelta[i] < -180.0f ) angleDelta[i] += 360.0f;
+		}
+
+		float swayScale = cl_viewmodel_sway->value * 0.4f;
+		vec3_t targetSway;
+		targetSway[0] = -angleDelta[YAW] * swayScale;
+		targetSway[1] = angleDelta[PITCH] * swayScale * 0.5f;
+		targetSway[2] = 0;
+
+		float speed = 6.0f * pparams->frametime;
+		if ( speed > 1.0f ) speed = 1.0f;
+		for ( int i = 0; i < 3; i++ )
+			g_vmSwayOffset[i] += ( targetSway[i] - g_vmSwayOffset[i] ) * speed;
+
+		for ( int i = 0; i < 3; i++ )
+			origin[i] += right[i] * g_vmSwayOffset[0] + up[i] * g_vmSwayOffset[1];
+
+		angles[ROLL] += g_vmSwayOffset[0] * 0.2f;
+
+		VectorCopy( pparams->viewangles, g_vmLastAngles );
+	}
+
+	// 2. Viewmodel movement bob - smooth velocity-based offset
+	if ( cl_viewmodel_movebob && cl_viewmodel_movebob->value > 0.0f )
+	{
+		static vec3_t g_vmMoveOffset = { 0, 0, 0 };
+
+		float vel[3];
+		vel[0] = pparams->simvel[0];
+		vel[1] = pparams->simvel[1];
+		vel[2] = 0;
+
+		float speed = sqrt( vel[0] * vel[0] + vel[1] * vel[1] );
+		float bobScale = cl_viewmodel_movebob->value * 0.02f;
+
+		vec3_t targetOffset = { 0, 0, 0 };
+
+		if ( pparams->onground != -1 && speed > 0.0f )
+		{
+			float velDir[3];
+			velDir[0] = vel[0] / speed;
+			velDir[1] = vel[1] / speed;
+			velDir[2] = 0;
+
+			float fwd = velDir[0] * forward[0] + velDir[1] * forward[1] + velDir[2] * forward[2];
+			float ri  = velDir[0] * right[0]  + velDir[1] * right[1]  + velDir[2] * right[2];
+
+			targetOffset[0] = fwd * speed * bobScale;
+			targetOffset[1] = ri * speed * bobScale * 0.5f;
+			targetOffset[2] = fabs( fwd ) * speed * bobScale * 0.3f;
+		}
+
+		float lerpSpeed = 4.0f * pparams->frametime;
+		if ( lerpSpeed > 1.0f ) lerpSpeed = 1.0f;
+		for ( int i = 0; i < 3; i++ )
+			g_vmMoveOffset[i] += ( targetOffset[i] - g_vmMoveOffset[i] ) * lerpSpeed;
+
+		for ( int i = 0; i < 3; i++ )
+			origin[i] += forward[i] * g_vmMoveOffset[0] + right[i] * g_vmMoveOffset[1];
+		origin[2] += g_vmMoveOffset[2];
+
+		angles[ROLL] -= g_vmMoveOffset[0] * 0.2f;
+		angles[PITCH] -= g_vmMoveOffset[1] * 0.15f;
+	}
+}
+
 /*
 ==================
 V_CalcRefdef
@@ -952,6 +1040,7 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 		lastorg = pparams->simorg;
 	}
 
+	V_CalcViewModelSway( pparams, view->origin, view->angles );
 	V_CalcQuakeGuns();
 	V_CalcViewModelLag( pparams, view->origin, view->angles );
 
@@ -1890,4 +1979,7 @@ void V_Init (void)
 
 	cl_quakeguns		= gEngfuncs.pfnRegisterVariable( "cl_quakeguns", "0", FCVAR_ARCHIVE );
 	cl_weaponlag		= gEngfuncs.pfnRegisterVariable( "cl_weaponlag", "0", FCVAR_ARCHIVE );
+
+	cl_viewmodel_sway		= gEngfuncs.pfnRegisterVariable( "cl_viewmodel_sway", "0.5", FCVAR_ARCHIVE );
+	cl_viewmodel_movebob	= gEngfuncs.pfnRegisterVariable( "cl_viewmodel_movebob", "0.3", FCVAR_ARCHIVE );
 }

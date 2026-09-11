@@ -265,6 +265,7 @@ int CHudScoreboard :: Init( void )
 	cl_show_scoreboard_on_death = CVAR_CREATE( "cl_show_scoreboard_on_death", "0", FCVAR_ARCHIVE );
 	m_pScoreboardBgAlpha = CVAR_CREATE( "hud_scoreboard_bg_alpha", "176", FCVAR_ARCHIVE );
 	m_pScoreboardRowAlpha = CVAR_CREATE( "hud_scoreboard_row_alpha", "34", FCVAR_ARCHIVE );
+	cl_scoreboard_anim = CVAR_CREATE( "cl_scoreboard_anim", "1", FCVAR_ARCHIVE );
 
 	return 1;
 }
@@ -278,6 +279,7 @@ int CHudScoreboard :: VidInit( void )
 	yend = ScreenHeight - ystart;
 	m_bForceDraw = false;
 	m_flAnimProgress = 0.0f;
+	m_flAnimProgressDisplay = 0.0f;
 	m_iAnimDir = 0;
 	m_HUD_d_skull = gHUD.GetSpriteIndex( "d_skull" );
 
@@ -308,6 +310,7 @@ void CHudScoreboard :: InitHUDData( void )
 	m_iFlags &= ~HUD_DRAW;  // starts out inactive
 
 	m_flAnimProgress = 0.0f;
+	m_flAnimProgressDisplay = 0.0f;
 	m_iAnimDir = 0;
 
 	m_iFlags |= HUD_INTERMISSION; // is always drawn during an intermission
@@ -345,11 +348,29 @@ int CHudScoreboard :: Draw( float flTime )
 		m_iAnimDir = 1;                          // fade in / re-open
 	}
 
-	m_flAnimProgress += m_iAnimDir * flTime * 7.0f;
-	if ( m_flAnimProgress < 0.0f )
-		m_flAnimProgress = 0.0f;
-	else if ( m_flAnimProgress > 1.0f )
-		m_flAnimProgress = 1.0f;
+	if ( cl_scoreboard_anim && cl_scoreboard_anim->value == 0.0f )
+	{
+		// animation disabled: snap instantly
+		m_iAnimDir = 0;
+		m_flAnimProgress = shouldDraw ? 1.0f : 0.0f;
+		m_flAnimProgressDisplay = m_flAnimProgress;
+	}
+	else
+	{
+		float flSpeed = 7.0f;
+		if ( cl_scoreboard_anim && cl_scoreboard_anim->value > 0.0f )
+			flSpeed = 7.0f * cl_scoreboard_anim->value;
+
+		m_flAnimProgress += m_iAnimDir * flTime * flSpeed;
+		if ( m_flAnimProgress < 0.0f )
+			m_flAnimProgress = 0.0f;
+		else if ( m_flAnimProgress > 1.0f )
+			m_flAnimProgress = 1.0f;
+
+		// cubic ease-out for a smoother reveal
+		float t = m_flAnimProgress;
+		m_flAnimProgressDisplay = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+	}
 
 	if ( m_flAnimProgress == 0.0f )
 	{
@@ -396,7 +417,7 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 	// HP/$ sit closer to the block's middle; K/D stay right of them with a
 	// generous gap so a 5-digit "$16000" never collides with K.
 	const int pad = max( XRES( 8 ), 8 );
-	const int rowAlpha = (int)( (float)Scoreboard_CvarAlpha( m_pScoreboardRowAlpha, 34 ) * m_flAnimProgress );
+	const int rowAlpha = (int)( (float)Scoreboard_CvarAlpha( m_pScoreboardRowAlpha, 34 ) * m_flAnimProgressDisplay );
 	const int rowTop = y + YRES( 24 );
 	const int rowBottom = y + tall - YRES( 8 );
 	const int pingX  = x + wide - pad;
@@ -458,7 +479,7 @@ int CHudScoreboard :: DrawModernTeamPlayers( int teamnumber, int x, int y, int w
 			FillRGBABlend( x + pad / 2, ypos - 2, wide - pad, ROW_GAP + 2, 0, 0, 0, rowAlpha / 2 );
 
 		if ( g_PlayerInfoList[bestPlayer].thisplayer )
-			FillRGBABlend( x + pad / 2, ypos - 2, wide - pad, ROW_GAP + 2, 255, 180, 32, (int)( 54.0f * m_flAnimProgress ) );
+			FillRGBABlend( x + pad / 2, ypos - 2, wide - pad, ROW_GAP + 2, 255, 180, 32, (int)( 54.0f * m_flAnimProgressDisplay ) );
 
 		int r = 255, g = 255, b = 255;
 		float *colors = GetClientColor( bestPlayer );
@@ -577,7 +598,7 @@ int CHudScoreboard :: DrawModernTeamScoreboard( float flTime )
 	serverName[sizeof( serverName ) - 1] = 0;
 
 	const int boardX = xstart;
-	const int boardY = ystart - (int)( ( 1.0f - m_flAnimProgress ) * YRES( 30 ) );
+	const int boardY = ystart - (int)( ( 1.0f - m_flAnimProgressDisplay ) * YRES( 30 ) );
 	const int boardW = xend - xstart;
 	const int boardH = yend - ystart;
 	const int pad = max( XRES( 12 ), 12 );
@@ -590,7 +611,7 @@ int CHudScoreboard :: DrawModernTeamScoreboard( float flTime )
 	const int colW = ( boardW - pad * 2 - gap ) / 2;
 	const int leftX = boardX + pad;
 	const int rightX = leftX + colW + gap;
-	const int bgAlpha = (int)( (float)Scoreboard_CvarAlpha( m_pScoreboardBgAlpha, 176 ) * m_flAnimProgress );
+	const int bgAlpha = (int)( (float)Scoreboard_CvarAlpha( m_pScoreboardBgAlpha, 176 ) * m_flAnimProgressDisplay );
 	const int roundR = max( XRES( 8 ), 8 );
 
 	int ctR, ctG, ctB;
@@ -602,8 +623,8 @@ int CHudScoreboard :: DrawModernTeamScoreboard( float flTime )
 
 	if( m_bDrawStroke )
 	{
-		Scoreboard_DrawRoundedBorder( boardX, boardY, boardW, boardH, roundR, 255, 180, 32, (int)( 220.0f * m_flAnimProgress ) );
-		Scoreboard_DrawRoundedBorder( boardX + 3, boardY + 3, boardW - 6, boardH - 6, roundR, 255, 180, 32, (int)( 60.0f * m_flAnimProgress ) );
+		Scoreboard_DrawRoundedBorder( boardX, boardY, boardW, boardH, roundR, 255, 180, 32, (int)( 220.0f * m_flAnimProgressDisplay ) );
+		Scoreboard_DrawRoundedBorder( boardX + 3, boardY + 3, boardW - 6, boardH - 6, roundR, 255, 180, 32, (int)( 60.0f * m_flAnimProgressDisplay ) );
 	}
 
 	Scoreboard_DrawCenteredText( boardX + pad, boardY + YRES( 10 ), boardW - pad * 2, serverName, 255, 180, 32 );

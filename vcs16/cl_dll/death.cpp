@@ -37,17 +37,22 @@ struct DeathNoticeItem {
 	float *KillerColor;
 	float *VictimColor;
 	int iHeadShotId;
+	float flSpawnTime;	// when the item was added (used for fade in)
+	float flAnimY;		// smoothed y position for the slide animation
 };
 
 #define MAX_DEATHNOTICES	4
 static int DEATHNOTICE_DISPLAY_TIME = 6;
 
 #define DEATHNOTICE_TOP		32
+#define KILLFEED_FADE_TIME	0.4f
+#define KILLFEED_FADEIN_TIME	0.25f
 
 DeathNoticeItem rgDeathNoticeList[ MAX_DEATHNOTICES + 1 ];
 
 cvar_t *cl_killsound;
 cvar_t *cl_killsound_path;
+static cvar_t *cl_killfeed_smooth;
 
 int CHudDeathNotice :: Init( void )
 {
@@ -58,6 +63,7 @@ int CHudDeathNotice :: Init( void )
 	hud_deathnotice_time = CVAR_CREATE( "hud_deathnotice_time", "6", FCVAR_ARCHIVE );
 	cl_killsound = CVAR_CREATE( "cl_killsound", "0", FCVAR_ARCHIVE );
 	cl_killsound_path = CVAR_CREATE( "cl_killsound_path", "buttons/bell1.wav", FCVAR_ARCHIVE );
+	cl_killfeed_smooth = CVAR_CREATE( "cl_killfeed_smooth", "1", FCVAR_ARCHIVE );
 	m_iFlags = 0;
 
 	return 1;
@@ -102,13 +108,41 @@ int CHudDeathNotice :: Draw( float flTime )
 		//if ( !gHUD.m_iNoConsolePrint )
 		{
 			// Draw the death notice
+			int targetY;
 			if( !g_iUser1 )
 			{
-				y = YRES(DEATHNOTICE_TOP) + 2 + (20 * i);  //!!!
+				targetY = YRES(DEATHNOTICE_TOP) + 2 + (20 * i);  //!!!
 			}
 			else
 			{
-				y = ScreenHeight / 5 + 2 + (20 * i);
+				targetY = ScreenHeight / 5 + 2 + (20 * i);
+			}
+
+			float alphaFactor = 1.0f;
+			if ( cl_killfeed_smooth && cl_killfeed_smooth->value > 0.0f )
+			{
+				float flAge = flTime - rgDeathNoticeList[i].flSpawnTime;
+				float fadeIn  = bound( flAge / KILLFEED_FADEIN_TIME, 0.0f, 1.0f );
+				float fadeOut = bound( ( rgDeathNoticeList[i].flDisplayTime - flTime ) / KILLFEED_FADE_TIME, 0.0f, 1.0f );
+				alphaFactor = fadeIn * fadeOut;
+
+				// glide the item toward its target position
+				if ( rgDeathNoticeList[i].flAnimY < 0.0f )
+					rgDeathNoticeList[i].flAnimY = targetY;	// first frame: snap
+				else
+				{
+					float k = 14.0f * flTime;
+					if ( k > 1.0f ) k = 1.0f;
+					rgDeathNoticeList[i].flAnimY += ( targetY - rgDeathNoticeList[i].flAnimY ) * k;
+					float dy = targetY - rgDeathNoticeList[i].flAnimY;
+					if ( dy < 0.5f && dy > -0.5f )
+						rgDeathNoticeList[i].flAnimY = targetY;
+				}
+				y = (int)( rgDeathNoticeList[i].flAnimY + 0.5f );
+			}
+			else
+			{
+				y = targetY;
 			}
 
 			int id = (rgDeathNoticeList[i].iId == -1) ? m_HUD_d_skull : rgDeathNoticeList[i].iId;
@@ -122,7 +156,7 @@ int CHudDeathNotice :: Draw( float flTime )
 
 				// Draw killers name
 				if ( rgDeathNoticeList[i].KillerColor )
-					DrawUtils::SetConsoleTextColor( rgDeathNoticeList[i].KillerColor[0], rgDeathNoticeList[i].KillerColor[1], rgDeathNoticeList[i].KillerColor[2] );
+					DrawUtils::SetConsoleTextColor( rgDeathNoticeList[i].KillerColor[0] * alphaFactor, rgDeathNoticeList[i].KillerColor[1] * alphaFactor, rgDeathNoticeList[i].KillerColor[2] * alphaFactor );
 				x = 5 + DrawUtils::DrawConsoleString( x, y, rgDeathNoticeList[i].szKiller );
 			}
 
@@ -131,6 +165,10 @@ int CHudDeathNotice :: Draw( float flTime )
 			{
 				r = 10;	g = 240; b = 10;  // display it in sickly green
 			}
+
+			r = (int)( r * alphaFactor );
+			g = (int)( g * alphaFactor );
+			b = (int)( b * alphaFactor );
 
 			// Draw death weapon
 			SPR_Set( gHUD.GetSprite(id), r, g, b );
@@ -149,7 +187,7 @@ int CHudDeathNotice :: Draw( float flTime )
 			if (!rgDeathNoticeList[i].bNonPlayerKill)
 			{
 				if ( rgDeathNoticeList[i].VictimColor )
-					DrawUtils::SetConsoleTextColor( rgDeathNoticeList[i].VictimColor[0], rgDeathNoticeList[i].VictimColor[1], rgDeathNoticeList[i].VictimColor[2] );
+					DrawUtils::SetConsoleTextColor( rgDeathNoticeList[i].VictimColor[0] * alphaFactor, rgDeathNoticeList[i].VictimColor[1] * alphaFactor, rgDeathNoticeList[i].VictimColor[2] * alphaFactor );
 				x = DrawUtils::DrawConsoleString( x, y, rgDeathNoticeList[i].szVictim );
 			}
 		}
@@ -260,6 +298,8 @@ int CHudDeathNotice :: MsgFunc_DeathMsg( const char *pszName, int iSize, void *p
 	rgDeathNoticeList[i].iId = spr;
 
 	rgDeathNoticeList[i].flDisplayTime = gHUD.m_flTime + hud_deathnotice_time->value;
+	rgDeathNoticeList[i].flSpawnTime = gHUD.m_flTime;
+	rgDeathNoticeList[i].flAnimY = -1.0f;
 
 	// Play kill sound
 	if ((killer_this_player || g_iUser2 == killer) &&

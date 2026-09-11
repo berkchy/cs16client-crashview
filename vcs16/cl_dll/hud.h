@@ -402,10 +402,12 @@ private:
 	bool m_bDrawStroke;
 	int m_HUD_d_skull;
 	float m_flAnimProgress;
+	float m_flAnimProgressDisplay;
 	int m_iAnimDir;
 	cvar_t *cl_showpacketloss;
 	cvar_t *cl_showplayerversion;
 	cvar_t *cl_show_scoreboard_on_death;
+	cvar_t *cl_scoreboard_anim;
 	cvar_t *m_pScoreboardBgAlpha;
 	cvar_t *m_pScoreboardRowAlpha;
 };
@@ -944,7 +946,7 @@ private:
 		short m_iCounterTerrorists;
 		char m_szTimer[64];
 		char m_szMap[64];
-		char m_szNameAndHealth[80];
+		char m_szNameAndHealth[160];
 	} label;
 	int m_hTimerTexture;
 	int m_hChecked;
@@ -960,6 +962,8 @@ private:
 		MENU_SPEC_OPTIONS = (1<<3)
 	};
 	byte m_menuFlags;
+	float m_flFadeProgress;
+	bool m_bWasSpectating;
 };
 
 //
@@ -1158,6 +1162,8 @@ private:
 	cvar_t *hud_draw;
 	cvar_t *default_fov;
 	cvar_t *zoom_sens_ratio;
+	cvar_t *cl_smoothfov;
+	float m_flSmoothedFOV;
 };
 
 extern CHud gHUD;

@@ -65,6 +65,10 @@ static float flScrollTime = 0;  // the time at which the lines next scroll up
 
 static int Y_START = 0;
 static int line_height = 0;
+static float g_flChatScrollDist = 0.0f;	// remaining smooth-scroll distance for the chat block
+static float g_flLineAlpha[ MAX_LINES + 1 ];	// per-line fade-in alpha
+
+static cvar_t *cl_chat_smooth;
 
 int CHudSayText :: Init( void )
 {
@@ -77,6 +81,7 @@ int CHudSayText :: Init( void )
 	m_HUD_saytext =			gEngfuncs.pfnRegisterVariable( "hud_saytext_internal", "1", 0 );
 	m_HUD_saytext_time =	gEngfuncs.pfnRegisterVariable( "hud_saytext_time", "5", 0 );
 	m_HUD_saytext_console =	gEngfuncs.pfnRegisterVariable( "hud_saytext_console", "1", 0 );
+	cl_chat_smooth =		gEngfuncs.pfnRegisterVariable( "cl_chat_smooth", "1", FCVAR_ARCHIVE );
 
 	m_iFlags |= HUD_INTERMISSION; // is always drawn during an intermission
 
@@ -89,6 +94,9 @@ void CHudSayText :: InitHUDData( void )
 	memset( g_szLineBuffer, 0, sizeof g_szLineBuffer );
 	memset( g_pflNameColors, 0, sizeof g_pflNameColors );
 	memset( g_iNameLengths, 0, sizeof g_iNameLengths );
+	for( int i = 0; i <= MAX_LINES; i++ )
+		g_flLineAlpha[i] = 1.0f;
+	g_flChatScrollDist = 0.0f;
 }
 
 int CHudSayText :: VidInit( void )
@@ -99,10 +107,14 @@ int CHudSayText :: VidInit( void )
 
 int ScrollTextUp( void )
 {
+	if( cl_chat_smooth && cl_chat_smooth->value > 0.0f )
+		g_flChatScrollDist += line_height;
+
 	g_szLineBuffer[MAX_LINES][0] = 0;
 	memmove( g_szLineBuffer[0], g_szLineBuffer[1], sizeof(g_szLineBuffer) - sizeof(g_szLineBuffer[0]) ); // overwrite the first line // -V512
 	memmove( &g_pflNameColors[0], &g_pflNameColors[1], sizeof(g_pflNameColors) - sizeof(g_pflNameColors[0]) );
 	memmove( &g_iNameLengths[0], &g_iNameLengths[1], sizeof(g_iNameLengths) - sizeof(g_iNameLengths[0]) );
+	memmove( &g_flLineAlpha[0], &g_flLineAlpha[1], sizeof(g_flLineAlpha) - sizeof(g_flLineAlpha[0]) );
 	g_szLineBuffer[MAX_LINES-1][0] = 0;
 
 	if ( g_szLineBuffer[0][0] == ' ' ) // also scroll up following lines
@@ -121,6 +133,19 @@ int CHudSayText :: Draw( float flTime )
 	//if ( ( gViewPort && gViewPort->AllowedToPrintText() == FALSE) || !m_HUD_saytext->value )
 	if ( !m_HUD_saytext->value )
 		return 1;
+
+	const bool smooth = cl_chat_smooth && cl_chat_smooth->value > 0.0f;
+
+	// ease the scroll glide back to rest
+	if ( smooth && g_flChatScrollDist > 0.0f )
+	{
+		float k = 12.0f * flTime;
+		if ( k > 1.0f ) k = 1.0f;
+		g_flChatScrollDist -= g_flChatScrollDist * k;
+		if ( g_flChatScrollDist < 0.5f )
+			g_flChatScrollDist = 0.0f;
+		y += (int)g_flChatScrollDist;
+	}
 
 	// make sure the scrolltime is within reasonable bounds,  to guard against the clock being reset
 	flScrollTime = min( flScrollTime, flTime + m_HUD_saytext_time->value );
@@ -147,12 +172,21 @@ int CHudSayText :: Draw( float flTime )
 		if (!g_szLineBuffer[i][0]) // skip empty string
 			continue;
 
+		// fade in newly spawned lines
+		if( smooth && g_flLineAlpha[i] < 1.0f )
+		{
+			g_flLineAlpha[i] += flTime * 4.0f;
+			if( g_flLineAlpha[i] > 1.0f )
+				g_flLineAlpha[i] = 1.0f;
+		}
+		const float lineAlpha = smooth ? g_flLineAlpha[i] : 1.0f;
+
 		int current_x = LINE_START;
 		const char* text = g_szLineBuffer[i];
 		size_t length = strlen(text);
 
 		// default color if not set
-		DrawUtils::SetConsoleTextColor(g_ColorYellow[0], g_ColorYellow[1], g_ColorYellow[2]);
+		DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * lineAlpha, g_ColorYellow[1] * lineAlpha, g_ColorYellow[2] * lineAlpha);
 
 		// buffer for accumulating characters of the same color
 		char color_buffer[256] = {0};
@@ -177,16 +211,16 @@ int CHudSayText :: Draw( float flTime )
 				switch (color_code)
 				{
 					case '\x01': // yellow normal
-						DrawUtils::SetConsoleTextColor(g_ColorYellow[0], g_ColorYellow[1], g_ColorYellow[2]);
+						DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * lineAlpha, g_ColorYellow[1] * lineAlpha, g_ColorYellow[2] * lineAlpha);
 						break;
 					case '\x03': // team color
 						if (g_pflNameColors[i])
 						{
-							DrawUtils::SetConsoleTextColor(g_pflNameColors[i][0], g_pflNameColors[i][1], g_pflNameColors[i][2]);
+							DrawUtils::SetConsoleTextColor(g_pflNameColors[i][0] * lineAlpha, g_pflNameColors[i][1] * lineAlpha, g_pflNameColors[i][2] * lineAlpha);
 						}
 						break;
 					case '\x04': // green
-						DrawUtils::SetConsoleTextColor(g_ColorGreen[0], g_ColorGreen[1], g_ColorGreen[2]);
+						DrawUtils::SetConsoleTextColor(g_ColorGreen[0] * lineAlpha, g_ColorGreen[1] * lineAlpha, g_ColorGreen[2] * lineAlpha);
 						break;
 				}
 				continue;
@@ -377,6 +411,7 @@ void CHudSayText :: SayTextPrint( const char *pszBuf, int iBufSize, int clientIn
 
 	g_iNameLengths[i] = 0;
 	g_pflNameColors[i] = NULL;
+	g_flLineAlpha[i] = 0.0f;
 
 #if 1
 	// if it's a say message, search for the players name in the string
