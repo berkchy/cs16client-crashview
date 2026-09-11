@@ -139,7 +139,7 @@ int CHudSayText :: Draw( float flTime )
 	// ease the scroll glide back to rest
 	if ( smooth && g_flChatScrollDist > 0.0f )
 	{
-		float k = 12.0f * flTime;
+		float k = 6.0f * flTime;
 		if ( k > 1.0f ) k = 1.0f;
 		g_flChatScrollDist -= g_flChatScrollDist * k;
 		if ( g_flChatScrollDist < 0.5f )
@@ -175,7 +175,7 @@ int CHudSayText :: Draw( float flTime )
 		// fade in newly spawned lines
 		if( smooth && g_flLineAlpha[i] < 1.0f )
 		{
-			g_flLineAlpha[i] += flTime * 4.0f;
+			g_flLineAlpha[i] += flTime * 2.0f;
 			if( g_flLineAlpha[i] > 1.0f )
 				g_flLineAlpha[i] = 1.0f;
 		}

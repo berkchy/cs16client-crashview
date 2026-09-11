@@ -368,7 +368,7 @@ void CHud :: Init( void )
 	m_iLogo = 0;
 	m_iFOV = 0;
 	m_flSmoothedFOV = 0;
-	cl_smoothfov = CVAR_CREATE( "cl_smoothfov", "0", FCVAR_ARCHIVE );
+	cl_smoothfov = CVAR_CREATE( "cl_smoothfov", "5", FCVAR_ARCHIVE );
 
 	m_pSpriteList = NULL;
 

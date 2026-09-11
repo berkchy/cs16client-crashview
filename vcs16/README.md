@@ -49,7 +49,7 @@ After that, just install the APK and run.
 | xhair_size               | 4             | 0   | -   | Crosshair size.                                                                             |
 | xhair_t                  | 0             | 0   | 1   | Enables T-shaped crosshair.                                                                 |
 | xhair_thick              | 0             | 0   | -   | Crosshair thickness.                                                                        |
-| cl_smoothfov             | 0             | 0   | -   | Smooths the FOV interpolation of the view (0 to disable, 1 to enable).                      |
+| cl_smoothfov             | 5             | 0   | 30  | Exponential smoothing rate of FOV changes (higher = faster, 0 = disabled, ~5 smooth).      |
 | cl_scoreboard_anim       | 1             | 0   | 1   | Smoothly animates the scoreboard slide-in.                                                  |
 | cl_chat_smooth           | 1             | 0   | 1   | Smoothly animates chat message appearance/scrolling.                                        |
 | cl_killfeed_smooth       | 1             | 0   | 1   | Smoothly animates killfeed entries (fade + slide).                                          |

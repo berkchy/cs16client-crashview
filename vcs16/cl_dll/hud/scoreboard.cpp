@@ -357,9 +357,9 @@ int CHudScoreboard :: Draw( float flTime )
 	}
 	else
 	{
-		float flSpeed = 7.0f;
-		if ( cl_scoreboard_anim && cl_scoreboard_anim->value > 0.0f )
-			flSpeed = 7.0f * cl_scoreboard_anim->value;
+float flSpeed = 4.0f;
+	if ( cl_scoreboard_anim && cl_scoreboard_anim->value > 0.0f )
+		flSpeed = 4.0f * cl_scoreboard_anim->value;
 
 		m_flAnimProgress += m_iAnimDir * flTime * flSpeed;
 		if ( m_flAnimProgress < 0.0f )
@@ -598,7 +598,7 @@ int CHudScoreboard :: DrawModernTeamScoreboard( float flTime )
 	serverName[sizeof( serverName ) - 1] = 0;
 
 	const int boardX = xstart;
-	const int boardY = ystart - (int)( ( 1.0f - m_flAnimProgressDisplay ) * YRES( 30 ) );
+	const int boardY = ystart - (int)( ( 1.0f - m_flAnimProgressDisplay ) * YRES( 60 ) );
 	const int boardW = xend - xstart;
 	const int boardH = yend - ystart;
 	const int pad = max( XRES( 12 ), 12 );

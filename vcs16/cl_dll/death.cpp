@@ -45,8 +45,8 @@ struct DeathNoticeItem {
 static int DEATHNOTICE_DISPLAY_TIME = 6;
 
 #define DEATHNOTICE_TOP		32
-#define KILLFEED_FADE_TIME	0.4f
-#define KILLFEED_FADEIN_TIME	0.25f
+#define KILLFEED_FADE_TIME	0.6f
+#define KILLFEED_FADEIN_TIME	0.4f
 
 DeathNoticeItem rgDeathNoticeList[ MAX_DEATHNOTICES + 1 ];
 
@@ -131,7 +131,7 @@ int CHudDeathNotice :: Draw( float flTime )
 					rgDeathNoticeList[i].flAnimY = targetY;	// first frame: snap
 				else
 				{
-					float k = 14.0f * flTime;
+					float k = 7.0f * flTime;
 					if ( k > 1.0f ) k = 1.0f;
 					rgDeathNoticeList[i].flAnimY += ( targetY - rgDeathNoticeList[i].flAnimY ) * k;
 					float dy = targetY - rgDeathNoticeList[i].flAnimY;
