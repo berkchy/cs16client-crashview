@@ -279,13 +279,22 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 			"r8","r9","r10","r11","r12","sp","lr","pc",
 			"cpsr"
 		};
+		// ARM32 sigcontext exposes named arm_* fields instead of a regs[]
+		// array (aarch64 layout). r0..r10 map 1:1; r11=arm_fp, r12=arm_ip.
+		unsigned long regVals[] = {
+			mctx->arm_r0, mctx->arm_r1, mctx->arm_r2, mctx->arm_r3,
+			mctx->arm_r4, mctx->arm_r5, mctx->arm_r6, mctx->arm_r7,
+			mctx->arm_r8, mctx->arm_r9, mctx->arm_r10, mctx->arm_fp,
+			mctx->arm_ip, mctx->arm_sp, mctx->arm_lr, mctx->arm_pc,
+			mctx->arm_cpsr
+		};
 		for (int i = 0; i < 17; i++) {
 			line[0] = '\0';
 			safeStrcat(line, "  ", sizeof(line));
 			safeStrcat(line, regNames[i], sizeof(line));
 			safeStrcat(line, " = 0x", sizeof(line));
 			char hex[20];
-			safeIntToHex(hex, mctx->regs[i], sizeof(hex));
+			safeIntToHex(hex, regVals[i], sizeof(hex));
 			safeStrcat(line, hex, sizeof(line));
 			safeStrcat(line, "\n", sizeof(line));
 			write(fd, line, strlen(line));
