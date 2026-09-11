@@ -1,0 +1,59 @@
+diff --git a/modules/fun/fun.cpp b/modules/fun/fun.cpp
+index 2df866a..ef37553 100644
+--- a/modules/fun/fun.cpp
++++ b/modules/fun/fun.cpp
+@@ -409,23 +409,42 @@ static cell AMX_NATIVE_CALL strip_user_weapons(AMX *amx, cell *params)
+ {
+ 	enum args { arg_count, arg_index };
+ 
+-	const auto index = params[arg_index];
+-
+-	CHECK_PLAYER(index);
++	CHECK_PLAYER(params[arg_index]);
+ 
+-	const auto pPlayer = TypeConversion.id_to_edict(index);
+-	const auto pEntity = CREATE_NAMED_ENTITY(MAKE_STRING("player_weaponstrip"));
++	const auto pPlayer = TypeConversion.id_to_edict(params[arg_index]);
+ 
+-	if (FNullEnt(pEntity))
++	// Remove every weapon/item entity owned by this player directly through the
++	// engine. The classic implementation spawns a fake "player_weaponstrip"
++	// entity and punts it through the gamedll Use() round-trip, which on current
++	// Xash3D FWGS android builds reaches a broken symbol-resolution path
++	// (dlsym) and faults whenever a player is re-equipped while bots are
++	// thinking (ZP Night-Mare with bots, etc.). Iterating the global edict
++	// table and dropping owned weapon entities skips that gamedll round-trip
++	// entirely and only touches functions the engine provides on all builds.
++	for (int i = 0; i < 16384; ++i)
+ 	{
+-		return 0;
+-	}
++		edict_t *pEntity = (*g_engfuncs.pfnPEntityOfEntOffset)(i);
++		if (pEntity == nullptr)
++			break;
+ 
+-	MDLL_Spawn(pEntity);
+-	MDLL_Use(pEntity, pPlayer);
+-	REMOVE_ENTITY(pEntity);
++		if (pEntity == pPlayer)
++			continue;
++
++		if (pEntity->v.owner != pPlayer)
++			continue;
++
++		const char *szClass = (*g_engfuncs.pfnSzFromIndex)(pEntity->v.classname);
++		if (!szClass
++			|| (strncmp(szClass, "weapon_", 7) != 0
++			&& strncmp(szClass, "ammo_", 5) != 0
++			&& strncmp(szClass, "item_", 5) != 0
++			&& strncmp(szClass, "tf_weapon_", 10) != 0))
++			continue;
++
++		REMOVE_ENTITY(pEntity);
++	}
+ 
+-	*reinterpret_cast<int *>(MF_PlayerPropAddr(index, Player_CurrentWeapon)) = 0;
++	*reinterpret_cast<int *>(MF_PlayerPropAddr(params[arg_index], Player_CurrentWeapon)) = 0;
+ 
+ 	return 1;
+ }
