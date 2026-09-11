@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Pack the CI build output into release bundle artifacts.
 
-  gen-bundle.py <libdir> <out-bundle.zip> [<pluginsdir> <out-plugins.zip>]
+  gen-bundle.py <abi> <libdir> <out-bundle.zip> [<pluginsdir> <out-plugins.zip>]
 
 The bundle manifest schema mirrors com.pickle.patcher.lib.BundleManifest so the
 patched APK injects exactly these payload entries. The bundle only ships the
-native payload (AMXX core + metamod + module libs + client/menu libs). Addons
-(configs, plugins, gamedata) and the on-device compiler are deliberately NOT
-embedded anymore: the patcher installs addons separately from the
-amxx-addons.zip release asset, and the compiler stays bundled inside the
-patcher app itself.
+native payload (AMXX core + metamod + module libs + client/menu libs) for a
+single target ABI; addons (configs, plugins, gamedata) and the on-device
+compiler are deliberately NOT embedded anymore: the patcher installs addons
+separately from the amxx-addons.zip release asset, and the compiler stays
+bundled inside the patcher app itself.
 """
 import json
 import os
@@ -23,17 +23,30 @@ MODULES = [
     "hamsandwich", "json", "nvault", "reapi", "regex", "sockets", "sqlite",
 ]
 
+# ABI -> (android runtime lib suffix, canonical bundle asset name)
+ABI_MAP = {
+    "arm64-v8a": ("arm64", "amxx-bundle.zip"),
+    "armeabi-v7a": ("arm", "amxx-bundle-armeabi-v7a.zip"),
+}
+
 
 def main():
-    libdir, bundle_out = sys.argv[1], sys.argv[2]
-    plugins_dir, plugins_out = (sys.argv[3], sys.argv[4]) if len(sys.argv) > 3 else (None, None)
+    abi, libdir, bundle_out = sys.argv[1], sys.argv[2], sys.argv[3]
+    plugins_dir, plugins_out = (sys.argv[4], sys.argv[5]) if len(sys.argv) > 4 else (None, None)
+
+    if abi not in ABI_MAP:
+        print(f"unsupported ABI: {abi} (expected {', '.join(ABI_MAP)})", file=sys.stderr)
+        sys.exit(1)
+    suffix = ABI_MAP[abi][0]
+
+    abidir = f"lib/{abi}"
 
     entries = []
     core = os.path.join(libdir, "libamxmodx.so")
     assert os.path.exists(core), f"missing {core}"
     entries.append({
-        "source": "lib/arm64-v8a/libamxmodx.so",
-        "target": "lib/arm64-v8a/libamxmodx.so",
+        "source": f"{abidir}/libamxmodx.so",
+        "target": f"{abidir}/libamxmodx.so",
         "method": "STORED",
         "required": True,
         "description": "AMX Mod X core",
@@ -41,51 +54,52 @@ def main():
     metamod = os.path.join(libdir, "libmetamod.so")
     if os.path.exists(metamod):
         entries.append({
-            "source": "lib/arm64-v8a/libmetamod.so",
-            "target": "lib/arm64-v8a/libmetamod.so",
+            "source": f"{abidir}/libmetamod.so",
+            "target": f"{abidir}/libmetamod.so",
             "method": "STORED",
             "required": True,
             "description": "Metamod HL1",
         })
         # Xash3D Android resolves `-dll @yapb` (hardcoded in classes.dex /
-        # MainActivity argv) to lib/arm64-v8a/libyapb_android_arm64.so and loads it
-        # as the game DLL. Shipping metamod under that same name makes the patched
-        # APK run metamod (and therefore amxmodx) as the gamedll instead of YaPB,
-        # without having to rewrite the dex. Content equals libmetamod.so.
+        # MainActivity argv) to lib/<abi>/libyapb_android_<arch>.so and loads
+        # it as the game DLL. Shipping metamod under that same name makes the
+        # patched APK run metamod (and therefore amxmodx) as the gamedll
+        # instead of YaPB, without having to rewrite the dex.
+        # Content equals libmetamod.so.
         entries.append({
-            "source": "lib/arm64-v8a/libmetamod.so",
-            "target": "lib/arm64-v8a/libyapb_android_arm64.so",
+            "source": f"{abidir}/libmetamod.so",
+            "target": f"{abidir}/libyapb_android_{suffix}.so",
             "method": "STORED",
             "required": True,
-            "description": "Metamod as gamedll (masks libyapb_android_arm64.so)",
+            "description": f"Metamod as gamedll (masks libyapb_android_{suffix}.so)",
         })
     # Actual YaPB bot .so — loaded by metamod via plugins.ini
     yapb_so = os.path.join(libdir, "libyapb.so")
     if os.path.exists(yapb_so):
         entries.append({
-            "source": "lib/arm64-v8a/libyapb.so",
-            "target": "lib/arm64-v8a/libyapb.so",
+            "source": f"{abidir}/libyapb.so",
+            "target": f"{abidir}/libyapb.so",
             "method": "STORED",
             "required": False,
             "description": "YaPB bot plugin",
         })
     # CS16Client client DLL with crash handler (vcs16/cl_dll)
-    client_so = os.path.join(libdir, "libclient_android_arm64.so")
+    client_so = os.path.join(libdir, f"libclient_android_{suffix}.so")
     if os.path.exists(client_so):
         entries.append({
-            "source": "lib/arm64-v8a/libclient_android_arm64.so",
-            "target": "lib/arm64-v8a/libclient_android_arm64.so",
+            "source": f"{abidir}/libclient_android_{suffix}.so",
+            "target": f"{abidir}/libclient_android_{suffix}.so",
             "method": "STORED",
             "required": False,
             "description": "CS16Client client DLL (crash handler)",
         })
-    # Text-based main menu (mainui_cpp -> libmenu_android_arm64.so). Replaces the
-    # stock menu so banner titles and menu buttons render as text.
-    menu_so = os.path.join(libdir, "libmenu_android_arm64.so")
+    # Text-based main menu (mainui_cpp -> libmenu_android_<arch>.so). Replaces
+    # the stock menu so banner titles and menu buttons render as text.
+    menu_so = os.path.join(libdir, f"libmenu_android_{suffix}.so")
     if os.path.exists(menu_so):
         entries.append({
-            "source": "lib/arm64-v8a/libmenu_android_arm64.so",
-            "target": "lib/arm64-v8a/libmenu_android_arm64.so",
+            "source": f"{abidir}/libmenu_android_{suffix}.so",
+            "target": f"{abidir}/libmenu_android_{suffix}.so",
             "method": "STORED",
             "required": False,
             "description": "CS16Client main menu (text banners/buttons)",
@@ -94,8 +108,8 @@ def main():
         p = os.path.join(libdir, f"lib{mod}_amxx_amd64.so")
         if os.path.exists(p):
             entries.append({
-                "source": f"lib/arm64-v8a/lib{mod}_amxx_amd64.so",
-                "target": f"lib/arm64-v8a/lib{mod}_amxx_amd64.so",
+                "source": f"{abidir}/lib{mod}_amxx_amd64.so",
+                "target": f"{abidir}/lib{mod}_amxx_amd64.so",
                 "method": "STORED",
                 "required": True,
                 "description": f"{mod} module",
@@ -106,6 +120,7 @@ def main():
     manifest = {
         "version": VERSION,
         "game": "cs16client",
+        "abi": abi,
         "entries": entries,
     }
 
@@ -118,7 +133,7 @@ def main():
             seen_sources.add(e["source"])
             z.write(os.path.join(libdir, os.path.basename(e["source"])), e["source"])
 
-    print(f"bundle: {bundle_out} ({os.path.getsize(bundle_out)} bytes, {len(entries)} entries)")
+    print(f"bundle: {bundle_out} ({os.path.getsize(bundle_out)} bytes, {len(entries)} entries, abi={abi})")
 
     if plugins_dir and plugins_out:
         with zipfile.ZipFile(plugins_out, "w", zipfile.ZIP_DEFLATED) as z:

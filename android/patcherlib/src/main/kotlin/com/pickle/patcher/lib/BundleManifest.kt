@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonElement
 data class BundleManifest(
     val version: String = "",
     val game: String = "cs16client",
+    val abi: String = "arm64-v8a",
     val entries: List<BundleEntry> = emptyList(),
 ) {
     @Serializable

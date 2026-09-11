@@ -32,6 +32,7 @@ data class SourceInfo(
     val name: String,
     val sizeBytes: Long,
     val entryCount: Int,
+    val abis: List<String> = emptyList(),
 )
 
 sealed interface BundleState {
@@ -77,6 +78,27 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _bundle = MutableStateFlow<BundleState>(BundleState.None)
     val bundle: StateFlow<BundleState> = _bundle.asStateFlow()
+
+    /** ABI the user chose for the patch. Defaults to arm64-v8a. */
+    private val _abi = MutableStateFlow(SUPPORTED_ABIS.first())
+    val abi: StateFlow<String> = _abi.asStateFlow()
+
+    val supportedAbis: List<String> = SUPPORTED_ABIS
+
+    val sourceAbis: List<String> get() = _source.value?.abis ?: emptyList()
+    val loadedBundleAbi: String? get() = loadedBundle?.manifest?.abi?.ifBlank { null }
+
+    fun setAbi(abi: String) {
+        if (abi !in SUPPORTED_ABIS) return
+        _abi.value = abi
+        val b = loadedBundle
+        if (b != null && b.manifest.abi.isNotBlank() && b.manifest.abi != abi) {
+            // The currently loaded bundle was built for the previous ABI; it is
+            // invalid for the new selection, drop it so the user must fetch again.
+            loadedBundle = null
+            _bundle.value = BundleState.None
+        }
+    }
 
     private val _addons = MutableStateFlow<AddonsState>(AddonsState.None)
     val addons: StateFlow<AddonsState> = _addons.asStateFlow()
@@ -186,15 +208,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     out.outputStream().use { output -> input.copyTo(output) }
                 }
                 val info = ZipAnalyzer.analyze(out)
-                if (info.archAbi != "arm64-v8a") {
+                val supported = info.abis.filter { it in SUPPORTED_ABIS }
+                if (supported.isEmpty()) {
                     _patch.value = PatchUiState.Failed(
-                        "This APK has no arm64-v8a libraries (found: ${info.archAbi ?: "none"}). " +
-                            "The patcher only supports arm64 (arm64-v8a) CS16Client builds."
+                        "This APK has no supported native ABIs (found: " +
+                            "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")}). " +
+                            "Supported: ${SUPPORTED_ABIS.joinToString(", ")}."
                     )
                     _receivedSource.value = null
                     return@launch
                 }
-                _source.value = SourceInfo(name, out.length(), info.entryCount)
+                if (_abi.value !in supported) setAbi(supported.first())
+                _source.value = SourceInfo(name, out.length(), info.entryCount, supported)
                 _receivedSource.value = out
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed("Could not copy source APK: ${t.message}")
@@ -209,6 +234,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun useEmbeddedBundle() {
+        if (_abi.value != "arm64-v8a") {
+            _bundle.value = BundleState.DownloadError(
+                "The offline (embedded) bundle is built for arm64-v8a only. " +
+                    "Select arm64-v8a as the ABI, or download the bundle for ${_abi.value}."
+            )
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val b = bundleProvider.loadEmbedded()
             withContext(Dispatchers.Main) {
@@ -229,8 +261,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             _bundle.value = BundleState.Downloading(0.04f)
             try {
                 val rel = ReleaseRepository.latest(repo)
-                val asset = rel.bundleAsset()
-                    ?: throw IOException("No bundle found in the latest release")
+                val asset = rel.bundleAsset(_abi.value)
+                    ?: throw IOException("No bundle found for ABI ${_abi.value} in the latest release")
                 _bundle.update {
                     BundleState.Downloading(0.1f)
                 }
@@ -317,6 +349,22 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun startPatch() {
         val src = _receivedSource.value ?: return
         val b = loadedBundle ?: return
+        val selAbi = _abi.value
+        val bundleAbi = b.manifest.abi.ifBlank { "arm64-v8a" }
+        if (bundleAbi != selAbi) {
+            _patch.value = PatchUiState.Failed(
+                "The loaded bundle is built for $bundleAbi but you selected $selAbi. " +
+                    "Download the bundle for $selAbi first."
+            )
+            return
+        }
+        if (selAbi !in (_source.value?.abis ?: emptyList())) {
+            _patch.value = PatchUiState.Failed(
+                "The source APK does not contain a $selAbi library directory. " +
+                    "Re-pick the APK or select another ABI."
+            )
+            return
+        }
         val keystore = runCatching { loadSigningKeystore() }
             .getOrElse {
                 _patch.value = PatchUiState.Failed("Signing key could not be loaded: ${it.message}")
@@ -328,7 +376,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
             try {
                 val report = ApkPatcher.patch(
-                    ApkPatcher.PatchRequest(src, out, b, keystore, keepAbi = "arm64-v8a"),
+                    ApkPatcher.PatchRequest(src, out, b, keystore, keepAbi = selAbi),
                     onStep = { step, p ->
                         _patch.value = PatchUiState.Running(step, p)
                     },
@@ -880,6 +928,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
+        /** ABIs the patcher can build for, in priority order. */
+        val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/cs16-meta-patcher"
     }

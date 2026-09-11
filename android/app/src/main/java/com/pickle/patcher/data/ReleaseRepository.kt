@@ -38,8 +38,19 @@ object ReleaseRepository {
             val size: Long = 0,
         )
 
-        fun bundleAsset(): Asset? = assets.firstOrNull {
-            it.name.startsWith("amxx-bundle") && it.name.endsWith(".zip")
+        /**
+         * Bundle for the given ABI. arm64-v8a keeps the legacy asset name
+         * (amxx-bundle.zip, produced by every release) with
+         * amxx-bundle-arm64-v8a.zip as the modern fallback; other ABIs use
+         * amxx-bundle-<abi>.zip and are only present when CI built them.
+         */
+        fun bundleAsset(abi: String = "arm64-v8a"): Asset? {
+            val names = if (abi == "arm64-v8a") {
+                listOf("amxx-bundle.zip", "amxx-bundle-arm64-v8a.zip")
+            } else {
+                listOf("amxx-bundle-$abi.zip")
+            }
+            return assets.firstOrNull { it.name in names && it.name.endsWith(".zip") }
         }
 
         fun addonsAsset(): Asset? = assets.firstOrNull {

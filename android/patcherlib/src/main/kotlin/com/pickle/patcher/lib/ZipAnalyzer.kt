@@ -11,18 +11,22 @@ object ZipAnalyzer {
         val entryCount: Int,
         val hasResourcesArsc: Boolean,
         val archAbi: String?,
+        val abis: List<String>,
         val libCount: Int,
         val misalignedStored: List<String>,
     )
 
+    private val KNOWN_ABIS = listOf("arm64-v8a", "armeabi-v7a")
+
     fun analyze(file: File): ArchiveInfo {
         val zip = ZipRaw.open(file)
-            ?: return ArchiveInfo(file.name, file.length(), 0, false, null, 0, emptyList())
+            ?: return ArchiveInfo(file.name, file.length(), 0, false, null, emptyList(), 0, emptyList())
         try {
             val arsc = zip.entries["resources.arsc"]
             val libs = zip.entries.keys.filter { it.startsWith("lib/") && it.endsWith(".so") }
-            val abi = libs.firstOrNull { it.contains("arm64-v8a") }?.let { "arm64-v8a" }
-                ?: libs.firstOrNull { it.contains("armeabi-v7a") }?.let { "armeabi-v7a" }
+            // Which known ABIs has lib dirs for (in priority order).
+            val abis = KNOWN_ABIS.filter { abi -> libs.any { it.startsWith("lib/$abi/") } }
+            val abi = abis.firstOrNull()
             val misaligned = zip.entries.values
                 .filter { it.method == 0 && (it.dataOffset % 4) != 0L }
                 .map { it.name }
@@ -32,6 +36,7 @@ object ZipAnalyzer {
                 entryCount = zip.entries.size,
                 hasResourcesArsc = arsc != null,
                 archAbi = abi,
+                abis = abis,
                 libCount = libs.size,
                 misalignedStored = misaligned,
             )

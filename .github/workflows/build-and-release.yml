@@ -59,8 +59,24 @@ jobs:
           # amxmodx is fetched from upstream by build-amxx.sh and customized
           # by ./patches/; hlsdk + metamod-p are vendored directly in android/
           # (android/hlsdk, android/mm-p), so no overlay copy step is needed.
-          bash ./android/ci/build-amxx.sh "$GITHUB_WORKSPACE/src" "$ANDROID_NDK_HOME" \
-            "$GITHUB_WORKSPACE/build-out" "$GITHUB_WORKSPACE/android/plugins-src"
+          # arm64-v8a is mandatory; armeabi-v7a is best-effort (trial) and its
+          # failure only drops the v7a bundle, it never fails the workflow.
+          for ABI in arm64-v8a armeabi-v7a; do
+            if bash ./android/ci/build-amxx.sh "$GITHUB_WORKSPACE/src" "$ANDROID_NDK_HOME" \
+                "$GITHUB_WORKSPACE/build-out" "$GITHUB_WORKSPACE/android/plugins-src" "$ABI"; then
+              echo "::group::OK $ABI"
+              ls -l "$GITHUB_WORKSPACE/build-out/lib/$ABI" 2>/dev/null
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              if [ "$ABI" = "arm64-v8a" ]; then
+                echo "::error::arm64-v8a cross-compile failed (required)"
+                exit 1
+              fi
+              echo "::warning::armeabi-v7a cross-compile failed — v7a bundle will be skipped"
+              touch "$GITHUB_WORKSPACE/v7a-missing"
+            fi
+          done
 
       - name: Package release bundles
         shell: bash
@@ -70,6 +86,14 @@ jobs:
             "$GITHUB_WORKSPACE/amxx-bundle.zip" \
             "$GITHUB_WORKSPACE/build-out/plugins" \
             "$GITHUB_WORKSPACE/amxx-plugins.zip"
+          if [ ! -f "$GITHUB_WORKSPACE/v7a-missing" ] && \
+              [ -f "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a/libamxmodx.so" ]; then
+            RELEASE_VERSION="$BUNDLE_VERSION" python3 ./android/ci/gen-bundle.py \
+              "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a" \
+              "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip"
+          else
+            echo "::warning::No amxmodx core for armeabi-v7a — v7a bundle skipped"
+          fi
           cd "$GITHUB_WORKSPACE"
           zip -r amxx-addons.zip addons/ -x '*.git*'
 
@@ -111,21 +135,37 @@ jobs:
       - name: Embed amxxpc + modules as native libs (nativeLibraryDir)
         shell: bash
         run: |
-          mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          BZIP="$GITHUB_WORKSPACE/amxx-bundle.zip"
           # amxxpc compiler (produced by build-amxx.sh; no longer inside the bundle)
-          cp "$GITHUB_WORKSPACE/build-out/compiler/amxxpc" android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
-          cp "$GITHUB_WORKSPACE/build-out/compiler/amxxpc32.so" android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cp "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/amxxpc" android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+          cp "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/amxxpc32.so" android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
           chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
           # AMXX modules — CS16Client loads them via nativeLibraryDir dlopen
-          for so in $(unzip -l "$BZIP" | grep 'lib/arm64-v8a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
+          for so in $(unzip -l "$GITHUB_WORKSPACE/amxx-bundle.zip" | grep 'lib/arm64-v8a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
             name=$(basename "$so")
-            unzip -p "$BZIP" "$so" > "android/app/src/main/jniLibs/arm64-v8a/$name"
+            unzip -p "$GITHUB_WORKSPACE/amxx-bundle.zip" "$so" > "android/app/src/main/jniLibs/arm64-v8a/$name"
             chmod +x "android/app/src/main/jniLibs/arm64-v8a/$name"
           done
           # core lib
-          unzip -p "$BZIP" lib/arm64-v8a/libamxmodx.so > android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
+          unzip -p "$GITHUB_WORKSPACE/amxx-bundle.zip" lib/arm64-v8a/libamxmodx.so > android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
           chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxmodx.so
+          # armeabi-v7a runtime (best-effort; makes the patcher usable on 32-bit
+          # devices and compile on-device for v7a). Only when CI produced it.
+          if [ ! -f "$GITHUB_WORKSPACE/v7a-missing" ] && \
+              [ -f "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a/libamxmodx.so" ]; then
+            mkdir -p android/app/src/main/jniLibs/armeabi-v7a
+            cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so 2>/dev/null || true
+            cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc32.so" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc32.so 2>/dev/null || true
+            chmod +x android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so 2>/dev/null || true
+            for so in $(unzip -l "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" | grep 'lib/armeabi-v7a/lib.*_amxx_amd64.so' | awk '{print $NF}'); do
+              name=$(basename "$so")
+              unzip -p "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" "$so" > "android/app/src/main/jniLibs/armeabi-v7a/$name"
+              chmod +x "android/app/src/main/jniLibs/armeabi-v7a/$name"
+            done
+            unzip -p "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" lib/armeabi-v7a/libamxmodx.so > android/app/src/main/jniLibs/armeabi-v7a/libamxmodx.so 2>/dev/null || true
+            chmod +x android/app/src/main/jniLibs/armeabi-v7a/libamxmodx.so 2>/dev/null || true
+            ls -lh android/app/src/main/jniLibs/armeabi-v7a/
+          fi
           ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Build the patcher APK
@@ -140,7 +180,9 @@ jobs:
         with:
           files: |
             amxx-bundle.zip
+            amxx-bundle-armeabi-v7a.zip
             amxx-plugins.zip
             amxx-addons.zip
             android/app/build/outputs/apk/release/*.apk
           generate_release_notes: true
+          fail_on_unmatched_files: false

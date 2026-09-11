@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Cross-compiles the CS16Client AMXX core + modules for android arm64 using the
-# Android NDK. Sources:
+# Cross-compiles the CS16Client AMXX core + modules for android using the
+# Android NDK. Supported target ABIs: arm64-v8a (default, fully supported) and
+# armeabi-v7a (best-effort/experimental trial — see known gaps below). Sources:
 #   - alliedmodders/amxmodx@master   (rolling 1.10, fetched from upstream)
 #   - android/mm-p                    (vendored Bots-United/metamod-p)
 #   - android/hlsdk                   (vendored HLSDK)
@@ -10,13 +11,19 @@
 # applied here. hlsdk + metamod-p are vendored into the repository (git
 # submodules cannot be used since the linked repos are not under this account).
 #
-# Produces:
-#   $OUT/lib/arm64-v8a/libamxmodx.so
-#   $OUT/lib/arm64-v8a/libmetamod.so                        (metamod-p, aarch64)
-#   $OUT/lib/arm64-v8a/lib<name>_amxx_amd64.so              (11 modules)
+# Produces (with ABI's shard dir this run builds into):
+#   $OUT/lib/$ABI/libamxmodx.so
+#   $OUT/lib/$ABI/libmetamod.so
+#   $OUT/lib/$ABI/lib<name>_amxx_amd64.so                   (modules)
+#   $OUT/compiler/$ABI/amxxpc[.so]                          (on-device compiler)
 #   $OUT/plugins/*.amxx                                     (64-bit cells, from plugins-src)
 #
-#   usage: ci/build-amxx.sh <src-root> <ndk-root> <out-dir> [plugins-src]
+#   usage: ci/build-amxx.sh <src-root> <ndk-root> <out-dir> [plugins-src] [abi]
+#
+# Known v7a gaps (trial): hamsandwich enforces trampolines in C only for
+# aarch64 (x86 template stays reachable on __arm__), ReGameDLL pdata layout for
+# arm32 is untested, and the arm64-only libcs byte-patch does not apply — so
+# v7a must be validated on-device per module before being offered as a release.
 #
 set -euo pipefail
 
@@ -28,10 +35,11 @@ SRC=$1
 NDK=$2
 OUT=$3
 PLUGINS_SRC=${4:-}
+ABI=${5:-arm64-v8a}
 
 AMXX_REPO=https://github.com/alliedmodders/amxmodx.git
 
-mkdir -p "$SRC" "$OUT/lib/arm64-v8a" "$OUT/plugins"
+mkdir -p "$SRC" "$OUT/lib/$ABI" "$OUT/plugins"
 
 # ------------------------------------------------------------------ sources
 fetch() {
@@ -230,12 +238,29 @@ HOST=$(uname -s | tr 'A-Z' 'a-z')
 if [ "$HOST" = darwin ]; then HOST=mac; fi
 
 TC=$NDK/toolchains/llvm/prebuilt/$HOST-x86_64/bin
-TARGET=aarch64-linux-android24
+case "$ABI" in
+  arm64-v8a)
+    TARGET=aarch64-linux-android24
+    SYSROOT_ARCH=aarch64-linux-android
+    PCRE_HOST=aarch64-linux-android
+    RUNTIME_SUFFIX=arm64
+    ;;
+  armeabi-v7a)
+    TARGET=armv7a-linux-androideabi24
+    SYSROOT_ARCH=arm-linux-androideabi
+    PCRE_HOST=arm-linux-androideabi
+    RUNTIME_SUFFIX=arm
+    ;;
+  *)
+    echo "unsupported ABI: $ABI (expected arm64-v8a or armeabi-v7a)" >&2
+    exit 1
+    ;;
+esac
 CC=$TC/$TARGET-clang
 CXX=$TC/$TARGET-clang++
 HOSTCC=${HOSTCC:-gcc}
 HOSTCXX=${HOSTCXX:-g++}
-SYSROOT_LIB=$NDK/toolchains/llvm/prebuilt/$HOST-x86_64/sysroot/usr/lib/aarch64-linux-android
+SYSROOT_LIB=$NDK/toolchains/llvm/prebuilt/$HOST-x86_64/sysroot/usr/lib/$SYSROOT_ARCH
 
 AMXX=$SRC/amxmodx
 HLSDK=$REPO_ROOT/android/hlsdk
@@ -322,10 +347,14 @@ relink() {
 # ------------------------------------------------------------------- core
 echo "== building core =="
 
-# ARM64: provide C implementations for the dynamic native helpers that are
-# only available as x86/amd64 NASM assembly in the upstream source.
-# These define: amxx_DynaInit, amxx_DynaMake, amxx_DynaCodesize, amxx_CpuSupport
-cat > "$AMXX/amxmodx/natives-arm64.c" << 'NATIVES_EOF'
+# Provide C implementations for the dynamic native helpers that upstream only
+# has as x86/amd64 NASM assembly (natives-*.asm). These define:
+#   amxx_DynaInit, amxx_DynaMake, amxx_DynaCodesize, amxx_CpuSupport
+# The file is regenerated for every build invocation (per $ABI), so a shared
+# source tree can build arm64 then v7a without stale arch templates.
+NATIVES_FILE="$AMXX/amxmodx/natives-android.c"
+if [ "$ABI" = arm64-v8a ]; then
+cat > "$NATIVES_FILE" << 'NATIVES_EOF'
 #include <stdint.h>
 #include <string.h>
 
@@ -392,7 +421,75 @@ int amxx_CpuSupport(void) {
     return 1;
 }
 NATIVES_EOF
-echo "   created natives-arm64.c"
+else
+cat > "$NATIVES_FILE" << 'NATIVES_EOF'
+#include <stdint.h>
+#include <string.h>
+
+static void *g_gate = 0;
+
+void amxx_DynaInit(void *ptr) {
+    g_gate = ptr;
+}
+
+int amxx_DynaCodesize(void) {
+    return 52;
+}
+
+/* ARM (A32) trampoline (13 words = 52 bytes, same size as the arm64 one so
+ * DynaCodesize stays single-valued). Executed from a Thumb-2 caller via
+ * interworking (trampoline address is even -> ARM state):
+ *   push {r7, lr}
+ *   add  r7, sp, #0
+ *   mov  r2, r1            ; params -> arg3
+ *   mov  r1, r0            ; amx    -> arg2
+ *   movw r0,  #id_lo16     ; patched
+ *   movt r0,  #id_hi16
+ *   movw r3,  #cb_lo16     ; patched
+ *   movt r3,  #cb_hi16
+ *   blx  r3                ; gate(id, amx, params)
+ *   pop  {r7, pc}
+ *   nop x3 (pad to 52 bytes)
+ */
+static const uint32_t tpl[] = {
+    0xE92D4080,  /* push {r7, lr}     */
+    0xE28D7000,  /* add  r7, sp, #0   */
+    0xE1A02001,  /* mov  r2, r1       */
+    0xE1A01000,  /* mov  r1, r0       */
+    0xE3000000,  /* movw r0, #0 (id lo) */
+    0xE3400000,  /* movt r0, #0 (id hi) */
+    0xE3030000,  /* movw r3, #0 (cb lo) */
+    0xE3430000,  /* movt r3, #0 (cb hi) */
+    0xE12FFF33,  /* blx  r3           */
+    0xE8BD8080,  /* pop  {r7, pc}     */
+    0xE320F000,  /* nop               */
+    0xE320F000,  /* nop               */
+    0xE320F000,  /* nop               */
+};
+
+/* movw/movt imm16 -> opcode bits [19:16]=imm4, [11:0]=imm12. */
+static inline uint32_t movimm(uint32_t opcode, uint32_t imm) {
+    return opcode | ((imm & 0xF000u) << 4) | (imm & 0x0FFFu);
+}
+
+void amxx_DynaMake(char *buf, int id) {
+    uint32_t code[13];
+    memcpy(code, tpl, sizeof(code));
+    uintptr_t cb = (uintptr_t)g_gate;
+    code[4] = movimm(0xE3000000, (uint32_t)(id & 0xFFFF));
+    code[5] = movimm(0xE3400000, (uint32_t)((id >> 16) & 0xFFFF));
+    code[6] = movimm(0xE3030000, (uint32_t)(cb & 0xFFFF));
+    code[7] = movimm(0xE3430000, (uint32_t)((cb >> 16) & 0xFFFF));
+    memcpy(buf, code, sizeof(code));
+    __builtin___clear_cache(buf, buf + sizeof(code));
+}
+
+int amxx_CpuSupport(void) {
+    return 1;
+}
+NATIVES_EOF
+fi
+echo "   created natives-android.c ($ABI)"
 
 for f in "$AMXX/amxmodx"/*.c "$AMXX/amxmodx"/*.cpp; do
   [ -e "$f" ] || continue
@@ -415,21 +512,21 @@ for f in "$AMXX/third_party/utf8rewind/"*.c "$AMXX/third_party/utf8rewind/intern
   compile_one core "$f" "" ""
 done
 
-relink "$OUT/lib/arm64-v8a/libamxmodx.so" "$TMP"/core/*.o
-echo "   core -> $(ls -l "$OUT/lib/arm64-v8a/libamxmodx.so" | awk '{print $5}') bytes"
+relink "$OUT/lib/$ABI/libamxmodx.so" "$TMP"/core/*.o
+echo "   core -> $(ls -l "$OUT/lib/$ABI/libamxmodx.so" | awk '{print $5}') bytes"
 
 # ------------------------------------------------------------------ pcre
-# regex module needs a static arm64 pcre; upstream only ships linux/mac/win
-# prebuilts, so build it here (deterministic, source-based).
+# regex module needs a static pcre for the target ABI; upstream only ships
+# linux/mac/win prebuilts, so build it here (deterministic, source-based).
 PCRE_VER=8.45
 if [[ ! -f "$TMP/libpcre.a" ]]; then
-  echo "== building pcre $PCRE_VER (arm64) =="
+  echo "== building pcre $PCRE_VER ($ABI) =="
   curl -fsSL "https://downloads.sourceforge.net/project/pcre/pcre/$PCRE_VER/pcre-$PCRE_VER.tar.gz" -o "$TMP/pcre.tar.gz"
   tar -xzf "$TMP/pcre.tar.gz" -C "$TMP"
   (
     cd "$TMP/pcre-$PCRE_VER"
     CC="$CC" CXX="$CXX" CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" \
-      ./configure --host=aarch64-linux-android --disable-shared --enable-static \
+      ./configure --host=$PCRE_HOST --disable-shared --enable-static \
       --enable-utf8 --enable-unicode-properties --disable-cpp --prefix="$TMP/pcre-inst" \
       >/dev/null
     make -j"$(nproc)" >/dev/null
@@ -440,21 +537,26 @@ PCRE_A="$TMP/pcre-inst/lib/libpcre.a"
 
 # ------------------------------------------------------------- metamod
 # fwgs metamod (FWGS/metamod-fwgs): Xash3D-explicit, builds
-# libmetamod_android_arm64.so via CMake with the NDK toolchain. Renamed to
-# libmetamod.so for the bundle (the yapb alias still resolves to the same file).
-echo "== building metamod (metamod-fwgs, aarch64) =="
+# libmetamod_android_<arch>.so via CMake with the NDK toolchain. Renamed to
+# libmetamod.so for the bundle (the gamedll alias still resolves to it).
+echo "== building metamod (metamod-fwgs, $ABI) =="
 MMBUILD=$TMP/metamod-fwgs-build
 cmake -S "$SRC/metamod-fwgs" -B "$MMBUILD" \
   -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \
   -DANDROID_STL=c++_static \
   -DUSE_STATIC_RUNTIME=ON \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$MMBUILD" --target metamod -j"$(nproc)"
-cp "$MMBUILD/metamod/libmetamod_android_arm64.so" "$OUT/lib/arm64-v8a/libmetamod.so"
-echo "   metamod -> $(ls -l "$OUT/lib/arm64-v8a/libmetamod.so" | awk '{print $5}') bytes"
+MM_SO=$(find "$MMBUILD" -name "libmetamod_android_$RUNTIME_SUFFIX.so" | head -1)
+if [ -n "$MM_SO" ]; then
+  cp "$MM_SO" "$OUT/lib/$ABI/libmetamod.so"
+  echo "   metamod -> $(ls -l "$OUT/lib/$ABI/libmetamod.so" | awk '{print $5}') bytes"
+else
+  echo "WARN: metamod lib not found, skipping"
+fi
 
 # ----------------------------------------------------------------- modules
 build_module() {
@@ -470,8 +572,8 @@ build_module() {
       compile_one "mod-$name" "$M/$f" "$MOD_INC $extra_inc" "$extra_defs"
     fi
   done
-  relink "$OUT/lib/arm64-v8a/lib$name"_amxx_amd64.so "$TMP/mod-$name"/*.o
-  echo "   $name -> $(ls -l "$OUT/lib/arm64-v8a/lib$name"_amxx_amd64.so | awk '{print $5}') bytes"
+  relink "$OUT/lib/$ABI/lib$name"_amxx_amd64.so "$TMP/mod-$name"/*.o
+  echo "   $name -> $(ls -l "$OUT/lib/$ABI/lib$name"_amxx_amd64.so | awk '{print $5}') bytes"
 }
 
 P="$AMXX/public"
@@ -533,7 +635,7 @@ build_module hamsandwich hamsandwich "" "-DHAVE_STDINT_H" \
   "pdata.cpp" "hook_specialbot.cpp"
 
 # link regex against freshly built pcre
-"$CXX" -fPIC -O2 -shared -nostdlib++ -o "$OUT/lib/arm64-v8a/libregex_amxx_amd64.so" \
+"$CXX" -fPIC -O2 -shared -nostdlib++ -o "$OUT/lib/$ABI/libregex_amxx_amd64.so" \
   "$TMP"/mod-regex/*.o "$cmd_shim" "$PCRE_A" \
   -Wl,--wrap=__assert2 -Wl,--wrap=__assert_fail \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
@@ -697,11 +799,11 @@ for f in "$REAPI"/src/*.cpp "$REAPI"/src/natives/*.cpp "$REAPI"/src/mods/*.cpp \
   "$CXX" $REAPI_BASEFLAGS -c "$f" -o "$TMP/mod-reapi/$bn.o"
   REAPI_SRCS="$REAPI_SRCS $TMP/mod-reapi/$bn.o"
 done
-"$CXX" -shared -o "$OUT/lib/arm64-v8a/libreapi_amxx_amd64.so" $REAPI_SRCS \
+"$CXX" -shared -o "$OUT/lib/$ABI/libreapi_amxx_amd64.so" $REAPI_SRCS \
   -static-libstdc++ -static-libgcc \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
   "$SYSROOT_LIB/libc++abi.a" -ldl -lm
-echo "   reapi -> $(ls -l "$OUT/lib/arm64-v8a/libreapi_amxx_amd64.so" | awk '{print $5}') bytes"
+echo "   reapi -> $(ls -l "$OUT/lib/$ABI/libreapi_amxx_amd64.so" | awk '{print $5}') bytes"
 
 # ------------------------------------------------------------------- yapb
 # YaPB bot (yapb/yapb) — metamod plugin, CMake-based.
@@ -710,15 +812,15 @@ YAPBBUILD="$TMP/yapb-build"
 cmake -S "$SRC/yapb" -B "$YAPBBUILD" \
   -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$YAPBBUILD" -j"$(nproc)"
 # YaPB produces libyapb.so or yapb.so depending on version
 YAPB_SO=$(find "$YAPBBUILD" -name "libyapb.so" -o -name "yapb.so" | head -1)
-cp "$YAPB_SO" "$OUT/lib/arm64-v8a/libyapb.so"
-echo "   yapb -> $(ls -l "$OUT/lib/arm64-v8a/libyapb.so" | awk '{print $5}') bytes"
+cp "$YAPB_SO" "$OUT/lib/$ABI/libyapb.so"
+echo "   yapb -> $(ls -l "$OUT/lib/$ABI/libyapb.so" | awk '{print $5}') bytes"
 
 # ----------------------------------------------------------------- client (crash handler)
 # CS16Client client DLL (vcs16/cl_dll) — built with crash handler, bundled as libclient
@@ -772,25 +874,25 @@ fi
 cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=ON -DMAINUI_NAME=menu -DMAINUI_USE_STB=ON -DMAINUI_RENDER_PICBUTTON_TEXT=ON
 cmake --build "$CLIENT_BUILD" --target client -j"$(nproc)"
-CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_arm64.so" -o -name "client_android_arm64.so" | head -1)
+CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_$RUNTIME_SUFFIX.so" -o -name "client_android_$RUNTIME_SUFFIX.so" | head -1)
 if [ -n "$CLIENT_SO" ]; then
-  cp "$CLIENT_SO" "$OUT/lib/arm64-v8a/libclient_android_arm64.so"
-  echo "   client -> $(ls -l "$OUT/lib/arm64-v8a/libclient_android_arm64.so" | awk '{print $5}') bytes"
+  cp "$CLIENT_SO" "$OUT/lib/$ABI/libclient_android_$RUNTIME_SUFFIX.so"
+  echo "   client -> $(ls -l "$OUT/lib/$ABI/libclient_android_$RUNTIME_SUFFIX.so" | awk '{print $5}') bytes"
 else
   echo "WARN: client lib not found, skipping"
 fi
 cmake --build "$CLIENT_BUILD" --target xashmenu -j"$(nproc)"
 MENU_SO=$(find "$CLIENT_BUILD" -name "libmenu*.so" | head -1)
 if [ -n "$MENU_SO" ]; then
-  cp "$MENU_SO" "$OUT/lib/arm64-v8a/libmenu_android_arm64.so"
-  echo "   menu -> $(ls -l "$OUT/lib/arm64-v8a/libmenu_android_arm64.so" | awk '{print $5}') bytes"
+  cp "$MENU_SO" "$OUT/lib/$ABI/libmenu_android_$RUNTIME_SUFFIX.so"
+  echo "   menu -> $(ls -l "$OUT/lib/$ABI/libmenu_android_$RUNTIME_SUFFIX.so" | awk '{print $5}') bytes"
 else
   echo "WARN: menu lib not found, skipping"
 fi
@@ -889,47 +991,47 @@ PY
   done
 fi
 
-# ------------------------------------------------------------------- amxxpc (arm64)
-# Same compiler sources as the host pawncc above, but cross-compiled for Android
-# arm64 so the patcher app can compile plugins on-device straight out of the
-# bundle. Layout mirrors the AMBuilder targets:
-#   OUT/compiler/amxxpc          driver (amxx.cpp + amxxpc.cpp + Binary.cpp + zlib)
-#   OUT/compiler/amxxpc32.so     libpc300 kernel (libpawnc + sc*), PAWN_CELL_SIZE=64
+# --------------------------------------------------------------- amxxpc ($ABI)
+# Same compiler sources as the host pawncc above, but cross-compiled for the
+# target Android ABI so the patcher app can compile plugins on-device straight
+# out of the bundle. Layout mirrors the AMBuilder targets:
+#   OUT/compiler/$ABI/amxxpc          driver (amxx.cpp + amxxpc.cpp + Binary.cpp + zlib)
+#   OUT/compiler/$ABI/amxxpc32.so     libpc300 kernel (libpawnc + sc*), PAWN_CELL_SIZE=64
 # The driver dlopens/amxxpc32.so at runtime, so both ship together. libc++ is
 # linked statically (libc++_static + libc++abi, whole-archive) to avoid having to
 # bundle libc++_shared.so and juggle LD_LIBRARY_PATH on-device.
-echo "== building arm64 amxxpc (embedded) =="
-PC_A64="$TMP/amxxpc-arm64"
-rm -rf "$PC_A64"
-mkdir -p "$PC_A64"
-PC_A64_COMMON="-std=gnu17 -O2 -fPIC -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DLINUX \
+echo "== building amxxpc for $ABI (embedded) =="
+PC_DEV="$TMP/amxxpc-$ABI"
+rm -rf "$PC_DEV"
+mkdir -p "$PC_DEV"
+PC_DEV_COMMON="-std=gnu17 -O2 -fPIC -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DLINUX \
   -DHAVE_UNISTD_H -DHAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_ALLOCA_H \
   -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN -I$LIBPC"
 for s in sc1 sc2 sc3 sc4 sc5 sc6 sc7 scvars scmemfil scstate sclist sci18n \
          pawncc libpawnc prefix memfile sp_symhash; do
   f="$LIBPC/$s.c"
   [ -e "$f" ] || continue
-  "$CC" $PC_A64_COMMON -DNO_MAIN -DPAWNC_DLL -D_GNU_SOURCE -c "$f" -o "$PC_A64/$s.o"
+  "$CC" $PC_DEV_COMMON -DNO_MAIN -DPAWNC_DLL -D_GNU_SOURCE -c "$f" -o "$PC_DEV/$s.o"
 done
-"$CXX" -shared -static-libstdc++ -o "$PC_A64/amxxpc32.so" "$PC_A64"/*.o -lm -ldl \
+"$CXX" -shared -static-libstdc++ -o "$PC_DEV/amxxpc32.so" "$PC_DEV"/*.o -lm -ldl \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive "$SYSROOT_LIB/libc++abi.a"
-mkdir -p "$PC_A64/zobj"
+mkdir -p "$PC_DEV/zobj"
 for f in "$AMXX/third_party/zlib"/*.c; do
   [ -e "$f" ] || continue
-  "$CC" -O2 -fPIC -c "$f" -o "$PC_A64/zobj/$(basename "${f%.c}").o"
+  "$CC" -O2 -fPIC -c "$f" -o "$PC_DEV/zobj/$(basename "${f%.c}").o"
 done
 "$CXX" -O2 -std=c++14 -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DHAVE_STDINT_H \
   -DLINUX -DAMX_ANSIONLY -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN \
   -I"$LIBPC" -I"$AMXX/public" -I"$AMXX/compiler/amxxpc" -I"$AMXX/third_party" \
-  -o "$PC_A64/amxxpc" "$AMXX/compiler/amxxpc"/amxxpc.cpp \
+  -o "$PC_DEV/amxxpc" "$AMXX/compiler/amxxpc"/amxxpc.cpp \
   "$AMXX/compiler/amxxpc"/Binary.cpp "$AMXX/compiler/amxxpc"/amx.cpp \
-  "$PC_A64"/zobj/*.o \
+  "$PC_DEV"/zobj/*.o \
   -static-libstdc++ -static-libgcc \
   -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
   "$SYSROOT_LIB/libc++abi.a" -ldl -lm -pthread
-mkdir -p "$OUT/compiler"
-cp "$PC_A64/amxxpc" "$PC_A64/amxxpc32.so" "$OUT/compiler/"
-echo "   amxxpc -> $(ls -l "$OUT/compiler/amxxpc" | awk '{print $5}') bytes"
+mkdir -p "$OUT/compiler/$ABI"
+cp "$PC_DEV/amxxpc" "$PC_DEV/amxxpc32.so" "$OUT/compiler/$ABI/"
+echo "   amxxpc -> $(ls -l "$OUT/compiler/$ABI/amxxpc" | awk '{print $5}') bytes"
 
 echo "ALL_BUILT"
-ls -l "$OUT/lib/arm64-v8a/" "$OUT/plugins" "$OUT/compiler"
+ls -l "$OUT/lib/$ABI/" "$OUT/plugins" "$OUT/compiler/$ABI"

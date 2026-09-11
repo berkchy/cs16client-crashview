@@ -75,8 +75,10 @@ object ApkPatcher {
         val arsc = ZipRaw.open(request.outputApk)?.entries?.get("resources.arsc")
         val arscStored = arsc != null && arsc.method == 0
         val arscAligned = arsc != null && (arsc.dataOffset % 4) == 0L
-        val modules = repack.added.filter { it.startsWith("lib/arm64-v8a/lib") && it.endsWith("_amxx_amd64.so") }
-            .plus(request.bundle.manifest.entries.map { it.target }.filter { it.startsWith("lib/arm64-v8a/lib") && it.endsWith("_amxx_amd64.so") })
+        val abi = request.keepAbi ?: "arm64-v8a"
+        val abiPrefix = "lib/$abi/lib"
+        val modules = repack.added.filter { it.startsWith(abiPrefix) && it.endsWith("_amxx_amd64.so") }
+            .plus(request.bundle.manifest.entries.map { it.target }.filter { it.startsWith(abiPrefix) && it.endsWith("_amxx_amd64.so") })
             .distinct()
 
         // sanity: align ALL stored entries of output

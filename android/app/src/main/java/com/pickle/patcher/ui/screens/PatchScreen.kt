@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.InstallDesktop
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -91,6 +92,11 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
+        SectionHeader("ABI")
+        AbiCard(vm)
+
+        Spacer(Modifier.height(16.dp))
+
         SectionHeader("BUILD")
         PatchCard(vm)
 
@@ -101,6 +107,50 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(16.dp))
     }
+}
+
+@Composable
+private fun AbiCard(vm: PatcherViewModel) {
+    val abi by vm.abi.collectAsState()
+    val sourceAbis = vm.sourceAbis
+
+    AppCard {
+        Text(
+            "Target ABI — the only native libs kept in the patched APK.",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            vm.supportedAbis.forEach { a ->
+                FilterChip(
+                    selected = a == abi,
+                    onClick = { vm.setAbi(a) },
+                    label = { Text(displayAbi(a)) },
+                    enabled = sourceAbis.isEmpty() || a in sourceAbis,
+                )
+            }
+        }
+        if (sourceAbis.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Found in source APK: ${sourceAbis.joinToString(", ")}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+        } else {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Pick a source APK first — ABIs are detected from it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+        }
+    }
+}
+
+private fun displayAbi(abi: String): String = when (abi) {
+    "armeabi-v7a" -> "Arm32"
+    else -> "Arm64"
 }
 
 @Composable
