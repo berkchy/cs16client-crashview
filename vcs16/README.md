@@ -49,6 +49,14 @@ After that, just install the APK and run.
 | xhair_size               | 4             | 0   | -   | Crosshair size.                                                                             |
 | xhair_t                  | 0             | 0   | 1   | Enables T-shaped crosshair.                                                                 |
 | xhair_thick              | 0             | 0   | -   | Crosshair thickness.                                                                        |
+| cl_smoothfov             | 0             | 0   | -   | Smooths the FOV interpolation of the view (0 to disable, 1 to enable).                      |
+| cl_scoreboard_anim       | 1             | 0   | 1   | Smoothly animates the scoreboard slide-in.                                                  |
+| cl_chat_smooth           | 1             | 0   | 1   | Smoothly animates chat message appearance/scrolling.                                        |
+| cl_killfeed_smooth       | 1             | 0   | 1   | Smoothly animates killfeed entries (fade + slide).                                          |
+| cl_viewmodel_sway        | 0.5           | 0   | -   | Viewmodel sway amount (recoil/aim drift).                                                   |
+| cl_viewmodel_movebob     | 0.3           | 0   | -   | Viewmodel movement bob amount (weapon wag while moving).                                    |
+| cl_spec_ui_color         | "255 140 0"   | -   | -   | Spectator HUD UI color (RGB).                                                               |
+| cl_spec_bar_alpha        | 153           | 0   | 255 | Spectator HUD bar alpha (0-255).                                                            |
 
 ## Building
 Clone the source code:
