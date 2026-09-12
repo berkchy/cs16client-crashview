@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 env:
-  BUNDLE_VERSION: ${{ github.event.inputs.version || '1.10.0' }}
+  BUNDLE_VERSION: ${{ github.event.inputs.version || github.ref_name || '1.10.0' }}
   ANDROID_DIR: android
 
 # NOTE: intentionally a SINGLE job. The old 3-job layout passed ~200 MB
@@ -83,7 +83,7 @@ jobs:
           # arm64-v8a is mandatory; armeabi-v7a is best-effort (trial) and its
           # failure only drops the v7a bundle, it never fails the workflow.
           for ABI in arm64-v8a armeabi-v7a; do
-            if bash ./android/ci/build-amxx.sh "$GITHUB_WORKSPACE/src" "$ANDROID_NDK_HOME" \
+            if RELEASE_VERSION="$BUNDLE_VERSION" bash ./android/ci/build-amxx.sh "$GITHUB_WORKSPACE/src" "$ANDROID_NDK_HOME" \
                 "$GITHUB_WORKSPACE/build-out" "$GITHUB_WORKSPACE/android/plugins-src" "$ABI"; then
               echo "::group::OK $ABI"
               ls -l "$GITHUB_WORKSPACE/build-out/lib/$ABI" 2>/dev/null
