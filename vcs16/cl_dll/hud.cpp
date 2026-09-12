@@ -425,6 +425,7 @@ void CHud :: Init( void )
 		m_SpectatorGui.Init();
 
 	m_Scoreboard.Init();
+	m_Scoreboard2.Init();
 
 	GetClientVoice()->Init( &g_VoiceStatusHelper );
 
