@@ -88,13 +88,15 @@ static struct Column
 
 //#include "vgui_TeamFortressViewport.h"
 
+static void __ShowScores( void ) { gHUD.m_Scoreboard.UserCmd_ShowScores(); }
+static void __HideScores( void ) { gHUD.m_Scoreboard.UserCmd_HideScores(); }
+
 int CHudScoreboard :: Init( void )
 {
 	gHUD.AddHudElem( this );
 
-	// Hook messages & commands here
-	HOOK_COMMAND( gHUD.m_Scoreboard, "+showscores", ShowScores );
-	HOOK_COMMAND( gHUD.m_Scoreboard, "-showscores", HideScores );
+	gEngfuncs.pfnAddCommand( "+showscores", __ShowScores );
+	gEngfuncs.pfnAddCommand( "-showscores", __HideScores );
 
 	HOOK_MESSAGE( gHUD.m_Scoreboard, ScoreInfo );
 	HOOK_MESSAGE( gHUD.m_Scoreboard, TeamScore );

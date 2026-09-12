@@ -241,13 +241,15 @@ static bool Scoreboard_PlayerMatchesTeam( int player, int teamnumber )
 
 //#include "vgui_TeamFortressViewport.h"
 
+static void __ShowScores2( void ) { gHUD.m_Scoreboard2.UserCmd_ShowScores(); }
+static void __HideScores2( void ) { gHUD.m_Scoreboard2.UserCmd_HideScores(); }
+
 int CHudScoreboard2 :: Init( void )
 {
 	gHUD.AddHudElem( this );
 
-	// Hook messages & commands here
-	HOOK_COMMAND( gHUD.m_Scoreboard2, "+showscores2", ShowScores );
-	HOOK_COMMAND( gHUD.m_Scoreboard2, "-showscores2", HideScores );
+	gEngfuncs.pfnAddCommand( "+showscores2", __ShowScores2 );
+	gEngfuncs.pfnAddCommand( "-showscores2", __HideScores2 );
 
 	HOOK_MESSAGE( gHUD.m_Scoreboard, ScoreInfo );
 	HOOK_MESSAGE( gHUD.m_Scoreboard, TeamScore );
