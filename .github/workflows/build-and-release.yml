@@ -157,7 +157,43 @@ jobs:
         shell: bash
         run: |
           mkdir -p android/app/src/main/assets/bundle
-          cp "$GITHUB_WORKSPACE/amxx-bundle.zip" android/app/src/main/assets/bundle/bundle.zip
+          # Create a merged multi-ABI bundle so the embedded fallback works on
+          # both arm64-v8a and armeabi-v7a devices without needing to download.
+          if [ ! -f "$GITHUB_WORKSPACE/v7a-missing" ] && \
+              [ -f "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" ]; then
+            python3 - "$GITHUB_WORKSPACE/amxx-bundle.zip" \
+                       "$GITHUB_WORKSPACE/amxx-bundle-armeabi-v7a.zip" \
+                       "android/app/src/main/assets/bundle/bundle.zip" <<'PYEOF'
+          import json, sys, zipfile
+          arm64_path, arm32_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+          with zipfile.ZipFile(arm64_path) as z64, \
+               zipfile.ZipFile(arm32_path) as z32, \
+               zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as out:
+              # Parse both manifests
+              m64 = json.loads(z64.read("bundle.json"))
+              m32 = json.loads(z32.read("bundle.json"))
+              # Merge entries (arm64 + arm32, deduplicate by source path)
+              seen = set()
+              entries = []
+              for e in m64.get("entries", []) + m32.get("entries", []):
+                  if e["source"] not in seen:
+                      seen.add(e["source"])
+                      entries.append(e)
+              merged = {"version": m64.get("version",""), "game": "cs16client",
+                        "abi": "", "entries": entries}
+              out.writestr("bundle.json", json.dumps(merged, separators=(",",":")))
+              # Copy all files from both zips
+              for zf in (z64, z32):
+                  for info in zf.infolist():
+                      if info.filename == "bundle.json" or info.is_dir():
+                          continue
+                      out.writestr(info, zf.read(info.filename))
+          print(f"merged bundle: {out_path} ({len(entries)} entries, arm64+arm32)")
+          PYEOF
+          else
+            # arm32 missing — embed arm64-only bundle as fallback
+            cp "$GITHUB_WORKSPACE/amxx-bundle.zip" android/app/src/main/assets/bundle/bundle.zip
+          fi
 
       - name: Embed amxxpc + modules as native libs (nativeLibraryDir)
         if: steps.build_type.outputs.needs_apk == 'true'

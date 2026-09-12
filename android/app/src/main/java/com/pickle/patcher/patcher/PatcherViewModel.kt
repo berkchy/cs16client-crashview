@@ -97,8 +97,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         _abi.value = abi
         val b = loadedBundle
         if (b != null && b.manifest.abi.isNotBlank() && b.manifest.abi != abi) {
-            // The currently loaded bundle was built for the previous ABI; it is
-            // invalid for the new selection, drop it so the user must fetch again.
             loadedBundle = null
             _bundle.value = BundleState.None
         }
@@ -238,13 +236,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun useEmbeddedBundle() {
-        if (_abi.value != "arm64-v8a") {
-            _bundle.value = BundleState.DownloadError(
-                "The offline (embedded) bundle is built for arm64-v8a only. " +
-                    "Select arm64-v8a as the ABI, or download the bundle for ${_abi.value}."
-            )
-            return
-        }
         viewModelScope.launch(Dispatchers.IO) {
             val b = bundleProvider.loadEmbedded()
             withContext(Dispatchers.Main) {
@@ -356,7 +347,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val src = _receivedSource.value ?: return
         val b = loadedBundle ?: return
         val selAbi = _abi.value
-        val bundleAbi = b.manifest.abi.ifBlank { "arm64-v8a" }
+        val bundleAbi = b.manifest.abi.ifBlank { selAbi }
         if (bundleAbi != selAbi) {
             _patch.value = PatchUiState.Failed(
                 "The loaded bundle is built for $bundleAbi but you selected $selAbi. " +

@@ -29,9 +29,11 @@ import androidx.compose.material.icons.filled.InstallDesktop
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SingleChoiceSegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +52,7 @@ import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
+import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
@@ -92,11 +95,6 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
-        SectionHeader("ABI")
-        AbiCard(vm)
-
-        Spacer(Modifier.height(16.dp))
-
         SectionHeader("BUILD")
         PatchCard(vm)
 
@@ -106,45 +104,6 @@ fun PatchScreen(vm: PatcherViewModel) {
         AddonsQuickCard(vm)
 
         Spacer(Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun AbiCard(vm: PatcherViewModel) {
-    val abi by vm.abi.collectAsState()
-    val sourceAbis = vm.sourceAbis
-
-    AppCard {
-        Text(
-            "Target ABI — the only native libs kept in the patched APK.",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            vm.supportedAbis.forEach { a ->
-                FilterChip(
-                    selected = a == abi,
-                    onClick = { vm.setAbi(a) },
-                    label = { Text(displayAbi(a)) },
-                    enabled = sourceAbis.isEmpty() || a in sourceAbis,
-                )
-            }
-        }
-        if (sourceAbis.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Found in source APK: ${sourceAbis.joinToString(", ")}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
-            )
-        } else {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Pick a source APK first — ABIs are detected from it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
-            )
-        }
     }
 }
 
@@ -215,8 +174,42 @@ private fun SourceCard(vm: PatcherViewModel) {
 @Composable
 private fun BundleCard(vm: PatcherViewModel) {
     val bundleState by vm.bundle.collectAsState()
+    val abi by vm.abi.collectAsState()
+    val sourceAbis = vm.sourceAbis
 
     AppCard {
+        // ABI selector — integrated into bundle card
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "ABI",
+                style = MaterialTheme.typography.titleSmall,
+                color = Gray40,
+            )
+            Spacer(Modifier.width(12.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                vm.supportedAbis.forEachIndexed { index, a ->
+                    SingleChoiceSegmentedButton(
+                        selected = a == abi,
+                        onClick = { vm.setAbi(a) },
+                        enabled = sourceAbis.isEmpty() || a in sourceAbis,
+                        shape = SegmentedButtonDefaults.itemShape(index, vm.supportedAbis.size),
+                    ) {
+                        Text(displayAbi(a))
+                    }
+                }
+            }
+        }
+        if (sourceAbis.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Source: ${sourceAbis.joinToString(", ")}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray60,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
         when (val bs = bundleState) {
             is BundleState.None -> {
                 Text(
