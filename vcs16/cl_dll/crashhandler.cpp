@@ -548,7 +548,7 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 	writeStr(fd, "\n");
 
 	// Fault address
-	{
+	if (info && info->si_addr) {
 		char line[64] = "Fault addr: 0x";
 		char hex[20];
 		safeIntToHex(hex, (unsigned long)info->si_addr, sizeof(hex));
@@ -770,6 +770,16 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 static struct sigaction s_oldHandlers[32];
 
 void CrashHandler_Init(void) {
+	// Set up an alternate signal stack so the handler has its own stack
+	// even when the crashed thread's stack is corrupted or overflowed.
+	static char s_signalStack[SIGSTKSZ];
+	stack_t ss;
+	memset(&ss, 0, sizeof(ss));
+	ss.ss_sp = s_signalStack;
+	ss.ss_size = SIGSTKSZ;
+	ss.ss_flags = 0;
+	sigaltstack(&ss, NULL);
+
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_sigaction = crashHandler;
