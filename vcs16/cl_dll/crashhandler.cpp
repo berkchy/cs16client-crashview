@@ -44,9 +44,15 @@ static int getBacktrace(void **buffer, int maxFrames) {
 	return state.depth;
 }
 
+static size_t safeStrlen(const char *str, size_t maxLen) {
+	size_t len = 0;
+	while (len < maxLen && str[len]) len++;
+	return len;
+}
+
 static void safeStrcat(char *dst, const char *src, size_t dstSize) {
-	size_t dstLen = strlen(dst);
-	size_t srcLen = strlen(src);
+	size_t dstLen = safeStrlen(dst, dstSize - 1);
+	size_t srcLen = safeStrlen(src, dstSize - 1);
 	if (dstLen + srcLen >= dstSize) srcLen = dstSize - dstLen - 1;
 	memcpy(dst + dstLen, src, srcLen);
 	dst[dstLen + srcLen] = '\0';
