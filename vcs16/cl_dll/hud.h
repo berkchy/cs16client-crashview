@@ -414,6 +414,62 @@ private:
 
 //
 //-----------------------------------------------------
+// Custom scoreboard (style 2) — animations + rounded panels
+//
+class CHudScoreboard2: public CHudBase
+{
+	friend class CHudSpectatorGui;
+public:
+	int Init( void );
+	void InitHUDData( void );
+	int VidInit( void );
+	int Draw( float flTime );
+
+	int DrawScoreboard( float flTime );
+	int DrawTeams( float listslot );
+	int DrawPlayers( float listslot, int nameoffset = 0, const char *team = NULL );
+	int DrawModernTeamScoreboard( float flTime );
+	int DrawModernTeamPlayers( int teamnumber, int x, int y, int wide, int tall, int nameoffset );
+
+	void DeathMsg( int killer, int victim );
+	void SetScoreboardDefaults( void );
+	void GetAllPlayersInfo( void );
+
+	bool ShouldDrawScoreboard() const;
+
+	CHudUserCmd(ShowScores);
+	CHudUserCmd(HideScores);
+
+	CHudMsgFunc(ScoreInfo);
+	CHudMsgFunc(TeamInfo);
+	CHudMsgFunc(TeamScore);
+	CHudMsgFunc(TeamNames);
+
+	int m_iPlayerNum;
+	int m_iNumTeams;
+
+	bool m_bForceDraw;
+	bool m_bShowscoresHeld;
+
+private:
+	int m_iLastKilledBy;
+	int m_fLastKillTime;
+	RGBA m_colors;
+	bool m_bDrawStroke;
+	int m_HUD_d_skull;
+	float m_flAnimProgress;
+	float m_flAnimProgressDisplay;
+	int m_iAnimDir;
+	cvar_t *cl_showpacketloss;
+	cvar_t *cl_showplayerversion;
+	cvar_t *cl_show_scoreboard_on_death;
+	cvar_t *cl_scoreboard_anim;
+	cvar_t *m_pScoreboardBgAlpha;
+	cvar_t *m_pScoreboardRowAlpha;
+};
+
+//
+//-----------------------------------------------------
 //
 class CHudStatusBar : public CHudBase
 {
@@ -1102,6 +1158,7 @@ public:
 	CHudTextMessage m_TextMessage;
 	CHudStatusIcons m_StatusIcons;
 	CHudScoreboard  m_Scoreboard;
+	CHudScoreboard2 m_Scoreboard2;
 	CHudMOTD        m_MOTD;
 	CHudMoney       m_Money;
 	CHudTimer       m_Timer;
