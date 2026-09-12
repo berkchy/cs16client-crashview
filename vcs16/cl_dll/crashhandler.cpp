@@ -12,11 +12,15 @@
 #include <elf.h>
 #include <link.h>
 #include <sys/mman.h>
+#include <sys/system_properties.h>
+#include <time.h>
 
 #include "crashhandler.h"
 
 static char s_crashLogPath[256] = {0};
 static volatile sig_atomic_t s_inCrash = 0;
+static char s_engineVersion[64] = {0};
+static char s_patcherVersion[64] = {0};
 
 // ─── async-signal-safe helpers ──────────────────────────────────────────────
 
@@ -75,33 +79,50 @@ static int writeStr(int fd, const char *s) {
 }
 
 // ─── unwind backtrace ───────────────────────────────────────────────────────
-
-struct BacktraceState {
-	void **current;
-	void **end;
-	int depth;
-};
-
-static _Unwind_Reason_Code unwindCallback(struct _Unwind_Context *context, void *arg) {
-	BacktraceState *state = (BacktraceState *)arg;
-	void *ip = (void *)_Unwind_GetIP(context);
-	if (ip) {
-		if (state->current < state->end) {
-			*state->current++ = ip;
-			state->depth++;
-		}
-		if (state->depth > 256) return _URC_END_OF_STACK;
-	}
-	return _URC_NO_REASON;
-}
+// _Unwind_Backtrace is unreliable inside signal handlers on ARM/ARM64.
+// Use frame-pointer walking instead — works when compiled with -fno-omit-frame-pointer.
 
 static int getBacktrace(void **buffer, int maxFrames) {
-	BacktraceState state;
-	state.current = buffer;
-	state.end = buffer + maxFrames;
-	state.depth = 0;
-	_Unwind_Backtrace(unwindCallback, &state);
-	return state.depth;
+	int count = 0;
+#if defined(__aarch64__)
+	// ARM64: fp=x29. Stack layout: [fp] -> prev_fp, [fp+8] -> return_addr
+	void **fp;
+	__asm__ volatile("mov %0, fp" : "=r"(fp));
+	while (count < maxFrames && fp && !((unsigned long)fp & 0xf)) {
+		void *ra = (void *)fp[1];
+		if (!ra) break;
+		buffer[count++] = ra;
+		void **prev = (void **)*fp;
+		if (prev <= fp) break;
+		fp = prev;
+	}
+#elif defined(__arm__)
+	// ARM32: fp=r11. Same layout: [fp] -> prev_fp, [fp+4] -> return_addr
+	void **fp;
+	__asm__ volatile("mov %0, fp" : "=r"(fp));
+	while (count < maxFrames && fp && !((unsigned long)fp & 0x3)) {
+		void *ra = (void *)fp[1];
+		if (!ra) break;
+		buffer[count++] = ra;
+		void **prev = (void **)*fp;
+		if (prev <= fp) break;
+		fp = prev;
+	}
+#else
+	// x86_64 fallback
+	struct BacktraceState { void **cur; void **end; int depth; };
+	auto cb = [](_Unwind_Context *ctx, void *arg) -> _Unwind_Reason_Code {
+		auto *s = (BacktraceState *)arg;
+		void *ip = (void *)_Unwind_GetIP(ctx);
+		if (ip && s->cur < s->end) { *s->cur++ = ip; s->depth++; }
+		if (s->depth > 256) return _URC_END_OF_STACK;
+		return _URC_NO_REASON;
+	};
+	BacktraceState state = { buffer, buffer + maxFrames, 0 };
+	_Unwind_Backtrace(cb, &state);
+	count = state.depth;
+#endif
+	return count;
 }
 
 // ─── ELF symbol resolution via dl_iterate_phdr ──────────────────────────────
@@ -549,6 +570,65 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 		writeStr(fd, line);
 	}
 
+	// Date/time
+	{
+		time_t now = time(NULL);
+		struct tm tm_buf;
+		localtime_r(&now, &tm_buf);
+		char dt[64];
+		strftime(dt, sizeof(dt), "%Y-%m-%d %H:%M:%S", &tm_buf);
+		writeStr(fd, "Time: ");
+		writeStr(fd, dt);
+		writeStr(fd, "\n");
+	}
+
+	// Device info via system properties
+	{
+		char prop[256];
+		writeStr(fd, "\n--- Device ---\n");
+
+		if (__system_property_get("ro.product.brand", prop) > 0) {
+			writeStr(fd, "Brand: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.product.model", prop) > 0) {
+			writeStr(fd, "Model: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.product.device", prop) > 0) {
+			writeStr(fd, "Device: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.product.board", prop) > 0) {
+			writeStr(fd, "Board: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.hardware.chipname", prop) > 0) {
+			writeStr(fd, "SoC: "); writeStr(fd, prop); writeStr(fd, "\n");
+		} else if (__system_property_get("ro.hardware", prop) > 0) {
+			writeStr(fd, "Hardware: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.product.cpu.abilist", prop) > 0) {
+			writeStr(fd, "CPU ABI: "); writeStr(fd, prop); writeStr(fd, "\n");
+		} else if (__system_property_get("ro.product.cpu.abi", prop) > 0) {
+			writeStr(fd, "CPU ABI: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.build.version.release", prop) > 0) {
+			writeStr(fd, "Android: "); writeStr(fd, prop);
+			if (__system_property_get("ro.build.version.sdk", prop) > 0) {
+				writeStr(fd, " (SDK "); writeStr(fd, prop); writeStr(fd, ")");
+			}
+			writeStr(fd, "\n");
+		}
+		if (__system_property_get("ro.build.display.id", prop) > 0) {
+			writeStr(fd, "Build: "); writeStr(fd, prop); writeStr(fd, "\n");
+		}
+	}
+
+	// Engine + Patcher version
+	if (s_engineVersion[0]) {
+		writeStr(fd, "Engine: "); writeStr(fd, s_engineVersion); writeStr(fd, "\n");
+	}
+	if (s_patcherVersion[0]) {
+		writeStr(fd, "Patcher: "); writeStr(fd, s_patcherVersion); writeStr(fd, "\n");
+	}
+
 	// Registers + extract key values
 	unsigned long x30v = 0, x16v = 0;
 #if defined(__aarch64__)
@@ -710,6 +790,16 @@ void CrashHandler_SetGameDir(const char *gamedir) {
 	} else {
 		safeStrcat(s_crashLogPath, "/sdcard/cs16client/crash.log", sizeof(s_crashLogPath));
 	}
+}
+
+void CrashHandler_SetEngineVersion(const char *ver) {
+	s_engineVersion[0] = '\0';
+	if (ver && ver[0]) safeStrcat(s_engineVersion, ver, sizeof(s_engineVersion));
+}
+
+void CrashHandler_SetPatcherVersion(const char *ver) {
+	s_patcherVersion[0] = '\0';
+	if (ver && ver[0]) safeStrcat(s_patcherVersion, ver, sizeof(s_patcherVersion));
 }
 
 #endif // __ANDROID__

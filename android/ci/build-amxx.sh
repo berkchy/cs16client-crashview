@@ -897,6 +897,7 @@ cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCS16_PATCHER_VERSION="${RELEASE_VERSION:-dev}" \
   -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=ON -DMAINUI_NAME=menu -DMAINUI_USE_STB=ON -DMAINUI_RENDER_PICBUTTON_TEXT=ON
 cmake --build "$CLIENT_BUILD" --target client -j"$(nproc)"
 CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_*.so" -o -name "client_android_*.so" | head -1)

@@ -104,6 +104,19 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 
 	sscanf( CVAR_GET_STRING( "host_ver" ), "%d", &g_iXash );
 
+	// Engine version for crash log
+	{
+		char eVer[64] = {0};
+		const char *hostVer = CVAR_GET_STRING("host_ver");
+		if (hostVer && hostVer[0]) {
+			snprintf(eVer, sizeof(eVer), "Xash3D %s", hostVer);
+			CrashHandler_SetEngineVersion(eVer);
+		}
+	}
+#ifdef CS16_PATCHER_VERSION
+	CrashHandler_SetPatcherVersion(CS16_PATCHER_VERSION);
+#endif
+
 	Game_HookEvents();
 	CL_LoadParticleMan();
 

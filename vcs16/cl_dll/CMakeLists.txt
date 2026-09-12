@@ -66,6 +66,11 @@ include_directories(
 
 add_definitions(-DCLIENT_WEAPONS -DCLIENT_DLL -DSTDINT_H=<cstdint>)
 
+if(NOT DEFINED CS16_PATCHER_VERSION)
+	set(CS16_PATCHER_VERSION "dev")
+endif()
+add_definitions(-DCS16_PATCHER_VERSION="${CS16_PATCHER_VERSION}")
+
 if(NOT MSVC)
 	add_definitions(-DLINUX -D_LINUX)
 	add_definitions(-Dstricmp=strcasecmp -D_strnicmp=strncasecmp -Dstrnicmp=strncasecmp -fms-extensions)
