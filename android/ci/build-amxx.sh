@@ -559,7 +559,7 @@ cmake -S "$SRC/metamod-fwgs" -B "$MMBUILD" \
   -DUSE_STATIC_RUNTIME=ON \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$MMBUILD" --target metamod -j"$(nproc)"
-MM_SO=$(find "$MMBUILD" -name "libmetamod_android_$RUNTIME_SUFFIX.so" | head -1)
+MM_SO=$(find "$MMBUILD" -name "libmetamod_android_*.so" | head -1)
 if [ -n "$MM_SO" ]; then
   cp "$MM_SO" "$OUT/lib/$ABI/libmetamod.so"
   echo "   metamod -> $(ls -l "$OUT/lib/$ABI/libmetamod.so" | awk '{print $5}') bytes"
@@ -899,7 +899,7 @@ cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=ON -DMAINUI_NAME=menu -DMAINUI_USE_STB=ON -DMAINUI_RENDER_PICBUTTON_TEXT=ON
 cmake --build "$CLIENT_BUILD" --target client -j"$(nproc)"
-CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_$RUNTIME_SUFFIX.so" -o -name "client_android_$RUNTIME_SUFFIX.so" | head -1)
+CLIENT_SO=$(find "$CLIENT_BUILD" -name "libclient_android_*.so" -o -name "client_android_*.so" | head -1)
 if [ -n "$CLIENT_SO" ]; then
   cp "$CLIENT_SO" "$OUT/lib/$ABI/libclient_android_$RUNTIME_SUFFIX.so"
   echo "   client -> $(ls -l "$OUT/lib/$ABI/libclient_android_$RUNTIME_SUFFIX.so" | awk '{print $5}') bytes"
