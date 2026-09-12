@@ -381,11 +381,24 @@ object ZipRepacker {
      * Returns patched bytes or null if pattern not found (already patched / different build).
      */
     private fun patchDex(content: ByteArray): ByteArray? {
-        val idx = content.indexOf(DEX_OLD)
+        val idx = findByteArray(content, DEX_OLD)
         if (idx < 0) return null
         val out = content.copyOf()
         for (i in DEX_NEW.indices) out[idx + i] = DEX_NEW[i]
         return out
+    }
+
+    private fun findByteArray(haystack: ByteArray, needle: ByteArray): Int {
+        if (needle.isEmpty()) return 0
+        val end = haystack.size - needle.size
+        for (i in 0..end) {
+            var match = true
+            for (j in needle.indices) {
+                if (haystack[i + j] != needle[j]) { match = false; break }
+            }
+            if (match) return i
+        }
+        return -1
     }
 
     private fun excludable(name: String, exclude: ExcludeRule): Boolean {
