@@ -235,17 +235,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }
 
-    fun useEmbeddedBundle() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val b = bundleProvider.loadEmbedded()
-            withContext(Dispatchers.Main) {
-                if (b != null) applyBundle("Embedded (offline)", b)
-                else _bundle.value =
-                    BundleState.DownloadError("No bundle is available on this device — download it online.")
-            }
-        }
-    }
-
     fun useCachedBundle() {
         val b = bundleProvider.loadCachedBundle()
         if (b != null) applyBundle("Downloaded ($CACHE_TAG)", b)
@@ -944,7 +933,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val kernel = File(compilerDir, "amxxpc32.so")
 
         val bundleFiles = try {
-            loadedBundle ?: bundleProvider.loadEmbedded() ?: bundleProvider.loadCachedBundle()
+            loadedBundle ?: bundleProvider.loadCachedBundle()
         } catch (_: Throwable) {
             null
         }
@@ -1030,7 +1019,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val gameDir = File(GAME_DIR)
             if (!gameDir.exists()) return@launch
 
-            val bundle = bundleProvider.loadEmbedded() ?: return@launch
+            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle() ?: return@launch
             var installed = 0
             for (entry in bundle.manifest.entries) {
                 if (!entry.target.startsWith("addons/")) continue
@@ -1071,7 +1060,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val gameDir = File(_installPath.value)
             val addonsDir = File(gameDir, "addons")
 
-            val bundle = loadedBundle ?: bundleProvider.loadEmbedded() ?: bundleProvider.loadCachedBundle()
+            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle()
             val expected = mutableSetOf<String>()
             if (bundle != null) {
                 for (entry in bundle.manifest.entries) {

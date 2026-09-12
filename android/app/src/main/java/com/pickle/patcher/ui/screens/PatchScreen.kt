@@ -218,19 +218,11 @@ private fun BundleCard(vm: PatcherViewModel) {
                     color = Gray40,
                 )
                 Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PrimaryButton(
-                        text = "Download",
-                        onClick = { vm.fetchAndDownloadBundle() },
-                        icon = { Icon(Icons.Filled.Download, null, modifier = Modifier.size(18.dp)) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    SecondaryButton(
-                        text = "Embedded",
-                        onClick = { vm.useEmbeddedBundle() },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                PrimaryButton(
+                    text = "Download",
+                    onClick = { vm.fetchAndDownloadBundle() },
+                    icon = { Icon(Icons.Filled.Download, null, modifier = Modifier.size(18.dp)) },
+                )
             }
             is BundleState.Downloading -> {
                 if (bs.tagName.isNotBlank()) {
@@ -248,10 +240,7 @@ private fun BundleCard(vm: PatcherViewModel) {
             is BundleState.DownloadError -> {
                 Text(bs.message, style = MaterialTheme.typography.bodySmall, color = AlertRed)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SecondaryButton("Retry", onClick = { vm.fetchAndDownloadBundle() })
-                    SecondaryButton("Embedded", onClick = { vm.useEmbeddedBundle() })
-                }
+                SecondaryButton("Retry", onClick = { vm.fetchAndDownloadBundle() })
             }
             is BundleState.Ready -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {

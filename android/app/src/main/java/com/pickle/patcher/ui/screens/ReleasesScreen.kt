@@ -118,19 +118,11 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             }
 
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PrimaryButton(
-                    text = "Download",
-                    onClick = { vm.fetchAndDownloadBundle() },
-                    icon = { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp)) },
-                    modifier = Modifier.weight(1f),
-                )
-                SecondaryButton(
-                    text = "Embedded",
-                    onClick = { vm.useEmbeddedBundle() },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            PrimaryButton(
+                text = "Download",
+                onClick = { vm.fetchAndDownloadBundle() },
+                icon = { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp)) },
+            )
 
             if (vm.hasCachedBundle) {
                 Spacer(Modifier.height(6.dp))
