@@ -31,9 +31,8 @@ import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SingleChoiceSegmentedButton
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -186,16 +185,17 @@ private fun BundleCard(vm: PatcherViewModel) {
                 color = Gray40,
             )
             Spacer(Modifier.width(12.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                vm.supportedAbis.forEachIndexed { index, a ->
-                    SingleChoiceSegmentedButton(
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                vm.supportedAbis.forEach { a ->
+                    FilterChip(
                         selected = a == abi,
                         onClick = { vm.setAbi(a) },
                         enabled = sourceAbis.isEmpty() || a in sourceAbis,
-                        shape = SegmentedButtonDefaults.itemShape(index, vm.supportedAbis.size),
-                    ) {
-                        Text(displayAbi(a))
-                    }
+                        label = { Text(displayAbi(a)) },
+                    )
                 }
             }
         }
