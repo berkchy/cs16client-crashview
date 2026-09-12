@@ -56,20 +56,10 @@ def main():
     if os.path.exists(metamod):
         entries.append({
             "source": f"{abidir}/libmetamod.so",
-            "target": f"{abidir}/libmetamod.so",
+            "target": f"{abidir}/libyapb_android_{suffix}.so",
             "method": "STORED",
             "required": True,
-            "description": "Metamod HL1",
-        })
-        # Xash3D Android resolves `-dll @mm` (patched into classes.dex by
-        # ZipRepacker.patchDex) to lib/<abi>/libmm_android_<arch>.so and loads
-        # it as the game DLL.  Content equals libmetamod.so.
-        entries.append({
-            "source": f"{abidir}/libmetamod.so",
-            "target": f"{abidir}/libmm_android_{suffix}.so",
-            "method": "STORED",
-            "required": True,
-            "description": f"Metamod as gamedll (libmm_android_{suffix}.so)",
+            "description": "Metamod HL1 (as libyapb for -dll @yapb)",
         })
     # Actual YaPB bot .so — loaded by metamod via plugins.ini
     yapb_so = os.path.join(libdir, "libyapb.so")
