@@ -292,6 +292,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 _addons.value = AddonsState.Downloading(1f, "Extracting into cstrike…")
                 val target = File(_installPath.value)
                 val count = unzipInto(zip, target)
+                patchMetamodConfig(target, _abi.value)
                 _addons.value = AddonsState.Done(
                     "Installed ${count} addons files into ${target.path}"
                 )
@@ -330,6 +331,31 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         return count
+    }
+
+    /**
+     * Ensures addons/metamod/config.ini has the correct [gamedll] line for the
+     * selected ABI.  The stock config shipped in amxx-addons.zip hard-codes the
+     * arm64 name; on arm32 this causes a FATAL ERROR.  If the file already
+     * exists we patch in-place; otherwise we create it from scratch.
+     */
+    private fun patchMetamodConfig(gameDir: File, abi: String) {
+        val suffix = when (abi) {
+            "arm64-v8a" -> "arm64"
+            "armeabi-v7a" -> "armv7l"
+            else -> return
+        }
+        val configFile = File(gameDir, "addons/metamod/config.ini")
+        val gamedllLine = "gamedll dlls/libcs_android_${suffix}.so"
+        if (configFile.exists()) {
+            val lines = configFile.readLines().toMutableList()
+            val idx = lines.indexOfFirst { it.startsWith("gamedll") }
+            if (idx >= 0) lines[idx] = gamedllLine else lines.add(0, gamedllLine)
+            configFile.writeText(lines.joinToString("\n"))
+        } else {
+            configFile.parentFile?.mkdirs()
+            configFile.writeText("$gamedllLine\n")
+        }
     }
 
     fun startPatch() {
