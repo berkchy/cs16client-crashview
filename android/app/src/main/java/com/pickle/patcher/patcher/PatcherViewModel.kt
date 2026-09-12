@@ -493,6 +493,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 var notes = ""
                 var url = "https://github.com/$APP_RELEASE_REPO/releases/download/$tag/CS16-Meta-Patcher-release.apk"
                 var size = 0L
+                var hasApkAsset = false
                 var commits = emptyList<String>()
                 try {
                     val rel = ReleaseRepository.latest(APP_RELEASE_REPO)
@@ -501,6 +502,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         rel.assets.firstOrNull { it.name.endsWith(".apk") }?.let {
                             url = it.browser_download_url
                             size = it.size
+                            hasApkAsset = true
                         }
                         if (ours != null && ours.startsWith("v") && ours != tag) {
                             commits = ReleaseRepository.compareCommits(APP_RELEASE_REPO, ours, tag)
@@ -510,7 +512,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 }
 
-                val buildType = parseBuildType(notes)
+                val buildType = parseBuildType(notes, hasApkAsset)
 
                 when (buildType) {
                     BuildType.BUNDLE -> {
@@ -1002,8 +1004,11 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
          *   [android build]  → APK-only update (skip bundle notification)
          *   [bundle build]   → Bundle-only update (skip APK dialog, show notification)
          *   [version build]  → Both APK + bundle (show APK dialog AND bundle notification)
+         *
+         * Falls back to checking APK asset presence: if no .apk asset exists in
+         * the release, it is a bundle-only update even without the tag.
          */
-        fun parseBuildType(body: String): BuildType {
+        fun parseBuildType(body: String, hasApkAsset: Boolean = true): BuildType {
             val lower = body.lowercase()
             val hasAndroid = "[android build]" in lower
             val hasBundle = "[bundle build]" in lower
@@ -1013,6 +1018,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 hasAndroid && !hasBundle -> BuildType.ANDROID
                 hasBundle && !hasAndroid -> BuildType.BUNDLE
                 hasAndroid && hasBundle -> BuildType.VERSION
+                !hasApkAsset -> BuildType.BUNDLE
                 else -> BuildType.ANDROID
             }
         }
