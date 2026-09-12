@@ -255,7 +255,7 @@ case "$ABI" in
     TARGET=armv7a-linux-androideabi24
     SYSROOT_ARCH=arm-linux-androideabi
     PCRE_HOST=arm-linux-androideabi
-    RUNTIME_SUFFIX=arm
+    RUNTIME_SUFFIX=armv7l
     # ARM32 AMXX modules are named "_arm" (not "_amd64"): the loader suffix
     # logic in the amxmodx-module-suffix-arm patch mirrors this.
     MOD_SUFFIX=arm

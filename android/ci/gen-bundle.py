@@ -27,7 +27,7 @@ MODULES = [
 # Module suffix: "amd64" upstream = 64-bit cells (LP64 ABIs), "arm" = ARM32.
 ABI_MAP = {
     "arm64-v8a": ("arm64", "amd64", "amxx-bundle.zip"),
-    "armeabi-v7a": ("arm", "arm", "amxx-bundle-armeabi-v7a.zip"),
+    "armeabi-v7a": ("armv7l", "arm", "amxx-bundle-armeabi-v7a.zip"),
 }
 
 
