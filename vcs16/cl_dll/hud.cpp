@@ -367,8 +367,7 @@ void CHud :: Init( void )
 
 	m_iLogo = 0;
 	m_iFOV = 0;
-	m_flSmoothedFOV = 0;
-	cl_smoothfov = CVAR_CREATE( "cl_smoothfov", "5", FCVAR_ARCHIVE );
+	cl_smoothfov = CVAR_CREATE( "cl_smoothfov", "0.25", FCVAR_ARCHIVE );
 
 	m_pSpriteList = NULL;
 
@@ -658,8 +657,15 @@ int CHud::MsgFunc_SetFOV(const char *pszName,  int iSize, void *pbuf)
 	if( newfov == 90 )
 		newfov = 0;
 
-	g_lastFOV = newfov;
-	m_iFOV = newfov ? newfov : def_fov;
+	m_flZoomTargetFOV = newfov ? newfov : def_fov;
+	m_flZoomStartFOV = m_iFOV;
+	m_flZoomStartTime = gHUD.m_flTime;
+
+	if ( !cl_smoothfov || cl_smoothfov->value <= 0 )
+	{
+		g_lastFOV = m_flZoomTargetFOV;
+		m_iFOV = m_flZoomTargetFOV;
+	}
 
 	// the clients fov is actually set in the client data update section of the hud
 

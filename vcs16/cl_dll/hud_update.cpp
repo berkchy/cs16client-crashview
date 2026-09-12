@@ -38,20 +38,9 @@ int CHud::UpdateClientData(client_data_t *cdata, float time)
 
 	Think();
 
-	if ( cl_smoothfov && cl_smoothfov->value > 0.0f )
-	{
-		// exponentially ease the rendered FOV toward the target
-		float k = 1.0f - expf( -cl_smoothfov->value * time );
-		if ( k > 1.0f ) k = 1.0f;
-		m_flSmoothedFOV += ( (float)m_iFOV - m_flSmoothedFOV ) * k;
-		cdata->fov = (int)( m_flSmoothedFOV + 0.5f );
-	}
-	else
-	{
-		cdata->fov = m_iFOV;
-		m_flSmoothedFOV = m_iFOV;
-	}
-	
+	// the clients fov is smoothed in Think(), the result lands directly in m_iFOV
+	cdata->fov = m_iFOV;
+
 	v_idlescale = m_iConcussionEffect;
 
 	CL_ResetButtonBits( m_iKeyBits );

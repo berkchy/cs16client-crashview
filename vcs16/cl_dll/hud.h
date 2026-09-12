@@ -523,6 +523,12 @@ private:
 	int m_HUD_d_skull;  // sprite index of skull icon
 	int m_HUD_d_headshot;
 	cvar_t *hud_deathnotice_time;
+	cvar_t *hud_deathnotice_x;
+	cvar_t *hud_deathnotice_y;
+	cvar_t *hud_deathnotice_bg_alpha;
+	cvar_t *hud_deathnotice_bg_softness;
+	cvar_t *hud_deathnotice_anim_time;
+	cvar_t *hud_deathnotice_row_gap;
 };
 
 //
@@ -581,6 +587,9 @@ private:
 	struct cvar_s *	m_HUD_saytext;
 	struct cvar_s *	m_HUD_saytext_time;
 	struct cvar_s *	m_HUD_saytext_console;
+	struct cvar_s *	m_HUD_saytext_anim_time;
+	struct cvar_s *	m_HUD_saytext_x_offset;
+	struct cvar_s *	m_HUD_saytext_y_offset;
 };
 
 //
@@ -1047,6 +1056,9 @@ public:
 	int		m_iKeyBits;
 	int		m_iHideHUDDisplay;
 	int		m_iFOV;
+	float	m_flZoomTargetFOV;
+	float	m_flZoomStartFOV;
+	float	m_flZoomStartTime;
 	int		m_Teamplay;
 	cvar_t *m_pCvarDraw;
 	cvar_t *fastsprites;
@@ -1163,7 +1175,6 @@ private:
 	cvar_t *default_fov;
 	cvar_t *zoom_sens_ratio;
 	cvar_t *cl_smoothfov;
-	float m_flSmoothedFOV;
 };
 
 extern CHud gHUD;

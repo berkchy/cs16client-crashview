@@ -19,6 +19,7 @@
 #include "hud.h"
 #include "cl_util.h"
 #include "triangleapi.h"
+#include "com_weapons.h"
 
 #include <string.h>
 
@@ -53,27 +54,56 @@ void CHud::Think(void)
 			pList->p->Think();
 	}
 
-	newfov = HUD_GetFOV();
-	m_iFOV = newfov ? newfov : default_fov->value;
+	if ( cl_smoothfov && cl_smoothfov->value > 0 )
+	{
+		// cl_smoothfov is the zoom transition time in seconds (0 disables smoothing)
+		float duration = max( cl_smoothfov->value, 0.01f );
+		float elapsed = gHUD.m_flTime - m_flZoomStartTime;
 
-	// the clients fov is actually set in the client data update section of the hud
+		if ( elapsed < duration )
+		{
+			float frac = elapsed / duration;
+			frac = frac * frac * ( 3.0f - 2.0f * frac ); // smoothstep
+			m_iFOV = m_flZoomStartFOV + ( m_flZoomTargetFOV - m_flZoomStartFOV ) * frac;
+		}
+		else
+		{
+			m_iFOV = m_flZoomTargetFOV;
+		}
 
-	// Set a new sensitivity
-	if ( m_iFOV == default_fov->value )
-	{  
-		// reset to saved sensitivity
-		m_flMouseSensitivity = 0;
+		g_lastFOV = m_iFOV;
+
+		// use target FOV for sensitivity to avoid fluctuating sensitivity during animation
+		int sensFOV = m_flZoomTargetFOV;
+		if ( sensFOV == default_fov->value )
+			m_flMouseSensitivity = 0;
+		else
+			m_flMouseSensitivity = sensitivity->value * ( (float)sensFOV / (float)default_fov->value ) * zoom_sens_ratio->value;
 	}
 	else
-	{  
-		// set a new sensitivity that is proportional to the change from the FOV default
-		m_flMouseSensitivity = sensitivity->value * ((float)newfov / (float)default_fov->value) * zoom_sens_ratio->value;
-	}
+	{
+		newfov = HUD_GetFOV();
+		m_iFOV = newfov ? newfov : default_fov->value;
 
-	// think about default fov
-	if ( m_iFOV == 0 )
-	{  // only let players adjust up in fov,  and only if they are not overriden by something else
-		m_iFOV = max( default_fov->value, 90 );
+		// Set a new sensitivity
+		if ( m_iFOV == default_fov->value )
+		{  
+			// reset to saved sensitivity
+			m_flMouseSensitivity = 0;
+		}
+		else
+		{  
+			// set a new sensitivity that is proportional to the change from the FOV default
+			m_flMouseSensitivity = sensitivity->value * ((float)newfov / (float)default_fov->value) * zoom_sens_ratio->value;
+		}
+
+		// think about default fov
+		if ( m_iFOV == 0 )
+		{  // only let players adjust up in fov,  and only if they are not overriden by something else
+			m_iFOV = max( default_fov->value, 90 );
+		}
+
+		g_lastFOV = m_iFOV;
 	}
 
 }

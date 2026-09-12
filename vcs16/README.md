@@ -49,10 +49,20 @@ After that, just install the APK and run.
 | xhair_size               | 4             | 0   | -   | Crosshair size.                                                                             |
 | xhair_t                  | 0             | 0   | 1   | Enables T-shaped crosshair.                                                                 |
 | xhair_thick              | 0             | 0   | -   | Crosshair thickness.                                                                        |
-| cl_smoothfov             | 5             | 0   | 30  | Exponential smoothing rate of FOV changes (higher = faster, 0 = disabled, ~5 smooth).      |
+| cl_smoothfov             | 0.25          | 0   | -   | Zoom transition time in seconds (smoothstep easing, 0 = disabled).                          |
 | cl_scoreboard_anim       | 1             | 0   | 1   | Smoothly animates the scoreboard slide-in.                                                  |
 | cl_chat_smooth           | 1             | 0   | 1   | Smoothly animates chat message appearance/scrolling.                                        |
+| hud_saytext_anim_time    | 0.20          | 0.01| 1.0 | Chat line fade/slide duration (seconds, requires cl_chat_smooth 1).                         |
+| hud_saytext_x_offset     | 12            | -   | -   | Horizontal offset of chat lines in pixels.                                                  |
+| hud_saytext_y_offset     | -15           | -   | -   | Vertical offset of chat lines in pixels.                                                    |
 | cl_killfeed_smooth       | 1             | 0   | 1   | Smoothly animates killfeed entries (fade + slide).                                          |
+| hud_deathnotice_x        | 4             | 0   | -   | Right padding of killfeed rows in pixels.                                                   |
+| hud_deathnotice_y        | 0             | -   | -   | Vertical offset of the killfeed stack.                                                      |
+| hud_deathnotice_row_gap  | 24            | 12  | 48  | Vertical spacing between killfeed rows.                                                     |
+| hud_deathnotice_bg_alpha | 96            | 0   | 255 | Killfeed background panel alpha.                                                            |
+| hud_deathnotice_bg_softness | 100         | 0   | 100 | Killfeed background corner radius / softness (scoreboard-style rounded corners).           |
+| hud_deathnotice_anim_time | 0.18         | 0.01| 1.0 | Killfeed fade/slide duration (seconds, requires cl_killfeed_smooth 1).                      |
+| hud_deathnotice_time     | 6             | -   | -   | How long a killfeed entry is shown (seconds).                                               |
 | cl_viewmodel_sway        | 0.5           | 0   | -   | Viewmodel sway amount (recoil/aim drift).                                                   |
 | cl_viewmodel_movebob     | 0.3           | 0   | -   | Viewmodel movement bob amount (weapon wag while moving).                                    |
 | cl_spec_ui_color       | "255 140 0"   | -   | -   | Spectator HUD UI color (RGB).                                                             |

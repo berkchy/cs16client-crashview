@@ -34,13 +34,6 @@
 
 extern float *GetClientColor( int clientIndex );
 
-#define MAX_LINES	5
-#define MAX_CHARS_PER_LINE	1024  /* it can be less than this, depending on char size */
-
-// allow 20 pixels on either side of the text
-#define MAX_LINE_WIDTH  ( ScreenWidth - 40 )
-#define LINE_START  10
-
 static void StripSayTextControlCodes( const char *src, char *dst, int dstSize )
 {
 	if ( !src || dstSize <= 0 )
@@ -58,17 +51,55 @@ static void StripSayTextControlCodes( const char *src, char *dst, int dstSize )
 	dst[j] = '\0';
 }
 
+static cvar_t *cl_chat_smooth;
+
+#define MAX_LINES	5
+#define MAX_CHARS_PER_LINE	1024  /* it can be less than this, depending on char size */
+
+// allow 20 pixels on either side of the text
+#define MAX_LINE_WIDTH  ( ScreenWidth - 40 )
+#define LINE_START  10
+
 static char g_szLineBuffer[ MAX_LINES + 1 ][ MAX_CHARS_PER_LINE ];
 static float *g_pflNameColors[ MAX_LINES + 1 ];
 static int g_iNameLengths[ MAX_LINES + 1 ];
+static float g_flLineCreateTime[ MAX_LINES + 1 ];
+static float g_flLineMoveTime[ MAX_LINES + 1 ];
+static int g_iLineSlot[ MAX_LINES + 1 ];
+static int g_iPrevLineSlot[ MAX_LINES + 1 ];
 static float flScrollTime = 0;  // the time at which the lines next scroll up
 
 static int Y_START = 0;
 static int line_height = 0;
-static float g_flChatScrollDist = 0.0f;	// remaining smooth-scroll distance for the chat block
-static float g_flLineAlpha[ MAX_LINES + 1 ];	// per-line fade-in alpha
 
-static cvar_t *cl_chat_smooth;
+static float SayText_ClampFloat( float value, float minValue, float maxValue )
+{
+	if( value < minValue )
+		return minValue;
+	if( value > maxValue )
+		return maxValue;
+	return value;
+}
+
+static float SayText_EaseOutCubic( float t )
+{
+	t = SayText_ClampFloat( t, 0.0f, 1.0f );
+	float inv = 1.0f - t;
+	return 1.0f - inv * inv * inv;
+}
+
+static int SayText_BaseYForLine( int line )
+{
+	return Y_START + line_height * line;
+}
+
+static void SayText_SetLineState( int line, float time )
+{
+	g_flLineCreateTime[line] = time;
+	g_flLineMoveTime[line] = time;
+	g_iLineSlot[line] = line;
+	g_iPrevLineSlot[line] = line;
+}
 
 int CHudSayText :: Init( void )
 {
@@ -81,6 +112,9 @@ int CHudSayText :: Init( void )
 	m_HUD_saytext =			gEngfuncs.pfnRegisterVariable( "hud_saytext_internal", "1", 0 );
 	m_HUD_saytext_time =	gEngfuncs.pfnRegisterVariable( "hud_saytext_time", "5", 0 );
 	m_HUD_saytext_console =	gEngfuncs.pfnRegisterVariable( "hud_saytext_console", "1", 0 );
+	m_HUD_saytext_anim_time = gEngfuncs.pfnRegisterVariable( "hud_saytext_anim_time", "0.20", FCVAR_ARCHIVE );
+	m_HUD_saytext_x_offset = gEngfuncs.pfnRegisterVariable( "hud_saytext_x_offset", "12", FCVAR_ARCHIVE );
+	m_HUD_saytext_y_offset = gEngfuncs.pfnRegisterVariable( "hud_saytext_y_offset", "-15", FCVAR_ARCHIVE );
 	cl_chat_smooth =		gEngfuncs.pfnRegisterVariable( "cl_chat_smooth", "1", FCVAR_ARCHIVE );
 
 	m_iFlags |= HUD_INTERMISSION; // is always drawn during an intermission
@@ -94,9 +128,13 @@ void CHudSayText :: InitHUDData( void )
 	memset( g_szLineBuffer, 0, sizeof g_szLineBuffer );
 	memset( g_pflNameColors, 0, sizeof g_pflNameColors );
 	memset( g_iNameLengths, 0, sizeof g_iNameLengths );
+	memset( g_flLineCreateTime, 0, sizeof g_flLineCreateTime );
+	memset( g_flLineMoveTime, 0, sizeof g_flLineMoveTime );
 	for( int i = 0; i <= MAX_LINES; i++ )
-		g_flLineAlpha[i] = 1.0f;
-	g_flChatScrollDist = 0.0f;
+	{
+		g_iLineSlot[i] = i;
+		g_iPrevLineSlot[i] = i;
+	}
 }
 
 int CHudSayText :: VidInit( void )
@@ -107,15 +145,18 @@ int CHudSayText :: VidInit( void )
 
 int ScrollTextUp( void )
 {
-	if( cl_chat_smooth && cl_chat_smooth->value > 0.0f )
-		g_flChatScrollDist += line_height;
-
 	g_szLineBuffer[MAX_LINES][0] = 0;
 	memmove( g_szLineBuffer[0], g_szLineBuffer[1], sizeof(g_szLineBuffer) - sizeof(g_szLineBuffer[0]) ); // overwrite the first line // -V512
 	memmove( &g_pflNameColors[0], &g_pflNameColors[1], sizeof(g_pflNameColors) - sizeof(g_pflNameColors[0]) );
 	memmove( &g_iNameLengths[0], &g_iNameLengths[1], sizeof(g_iNameLengths) - sizeof(g_iNameLengths[0]) );
-	memmove( &g_flLineAlpha[0], &g_flLineAlpha[1], sizeof(g_flLineAlpha) - sizeof(g_flLineAlpha[0]) );
+	memmove( &g_flLineCreateTime[0], &g_flLineCreateTime[1], sizeof(g_flLineCreateTime) - sizeof(g_flLineCreateTime[0]) );
+	memmove( &g_flLineMoveTime[0], &g_flLineMoveTime[1], sizeof(g_flLineMoveTime) - sizeof(g_flLineMoveTime[0]) );
+	memmove( &g_iLineSlot[0], &g_iLineSlot[1], sizeof(g_iLineSlot) - sizeof(g_iLineSlot[0]) );
+	memmove( &g_iPrevLineSlot[0], &g_iPrevLineSlot[1], sizeof(g_iPrevLineSlot) - sizeof(g_iPrevLineSlot[0]) );
 	g_szLineBuffer[MAX_LINES-1][0] = 0;
+	g_pflNameColors[MAX_LINES-1] = NULL;
+	g_iNameLengths[MAX_LINES-1] = 0;
+	SayText_SetLineState( MAX_LINES - 1, gHUD.m_flTime );
 
 	if ( g_szLineBuffer[0][0] == ' ' ) // also scroll up following lines
 	{
@@ -128,24 +169,14 @@ int ScrollTextUp( void )
 
 int CHudSayText :: Draw( float flTime )
 {
-	int y = Y_START;
-
 	//if ( ( gViewPort && gViewPort->AllowedToPrintText() == FALSE) || !m_HUD_saytext->value )
 	if ( !m_HUD_saytext->value )
 		return 1;
 
 	const bool smooth = cl_chat_smooth && cl_chat_smooth->value > 0.0f;
-
-	// ease the scroll glide back to rest
-	if ( smooth && g_flChatScrollDist > 0.0f )
-	{
-		float k = 6.0f * flTime;
-		if ( k > 1.0f ) k = 1.0f;
-		g_flChatScrollDist -= g_flChatScrollDist * k;
-		if ( g_flChatScrollDist < 0.5f )
-			g_flChatScrollDist = 0.0f;
-		y += (int)g_flChatScrollDist;
-	}
+	const float animTime = smooth ? SayText_ClampFloat( m_HUD_saytext_anim_time ? m_HUD_saytext_anim_time->value : 0.20f, 0.01f, 1.0f ) : 0.01f;
+	const int xOffset = smooth ? ( m_HUD_saytext_x_offset ? (int)m_HUD_saytext_x_offset->value : 12 ) : 0;
+	const int yOffset = smooth ? ( m_HUD_saytext_y_offset ? (int)m_HUD_saytext_y_offset->value : -15 ) : 0;
 
 	// make sure the scrolltime is within reasonable bounds,  to guard against the clock being reset
 	flScrollTime = min( flScrollTime, flTime + m_HUD_saytext_time->value );
@@ -172,21 +203,26 @@ int CHudSayText :: Draw( float flTime )
 		if (!g_szLineBuffer[i][0]) // skip empty string
 			continue;
 
-		// fade in newly spawned lines
-		if( smooth && g_flLineAlpha[i] < 1.0f )
+		if( g_iLineSlot[i] != i )
 		{
-			g_flLineAlpha[i] += flTime * 2.0f;
-			if( g_flLineAlpha[i] > 1.0f )
-				g_flLineAlpha[i] = 1.0f;
+			g_iPrevLineSlot[i] = g_iLineSlot[i] >= 0 ? g_iLineSlot[i] : i;
+			g_iLineSlot[i] = i;
+			g_flLineMoveTime[i] = flTime;
 		}
-		const float lineAlpha = smooth ? g_flLineAlpha[i] : 1.0f;
 
-		int current_x = LINE_START;
+		float enter = SayText_EaseOutCubic( ( flTime - g_flLineCreateTime[i] ) / animTime );
+		float exit = ( i == 0 ) ? SayText_ClampFloat( ( flScrollTime - flTime ) / animTime, 0.0f, 1.0f ) : 1.0f;
+		float fade = enter < exit ? enter : exit;
+		float move = SayText_EaseOutCubic( ( flTime - g_flLineMoveTime[i] ) / animTime );
+		float fromY = (float)SayText_BaseYForLine( g_iPrevLineSlot[i] );
+		float toY = (float)SayText_BaseYForLine( i );
+		int y = (int)( fromY + ( toY - fromY ) * move + yOffset + 0.5f );
+		int current_x = LINE_START + xOffset - (int)( XRES( 12 ) * ( 1.0f - enter ) + 0.5f );
 		const char* text = g_szLineBuffer[i];
 		size_t length = strlen(text);
 
 		// default color if not set
-		DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * lineAlpha, g_ColorYellow[1] * lineAlpha, g_ColorYellow[2] * lineAlpha);
+		DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * fade, g_ColorYellow[1] * fade, g_ColorYellow[2] * fade);
 
 		// buffer for accumulating characters of the same color
 		char color_buffer[256] = {0};
@@ -211,16 +247,16 @@ int CHudSayText :: Draw( float flTime )
 				switch (color_code)
 				{
 					case '\x01': // yellow normal
-						DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * lineAlpha, g_ColorYellow[1] * lineAlpha, g_ColorYellow[2] * lineAlpha);
+						DrawUtils::SetConsoleTextColor(g_ColorYellow[0] * fade, g_ColorYellow[1] * fade, g_ColorYellow[2] * fade);
 						break;
 					case '\x03': // team color
 						if (g_pflNameColors[i])
 						{
-							DrawUtils::SetConsoleTextColor(g_pflNameColors[i][0] * lineAlpha, g_pflNameColors[i][1] * lineAlpha, g_pflNameColors[i][2] * lineAlpha);
+							DrawUtils::SetConsoleTextColor(g_pflNameColors[i][0] * fade, g_pflNameColors[i][1] * fade, g_pflNameColors[i][2] * fade);
 						}
 						break;
 					case '\x04': // green
-						DrawUtils::SetConsoleTextColor(g_ColorGreen[0] * lineAlpha, g_ColorGreen[1] * lineAlpha, g_ColorGreen[2] * lineAlpha);
+						DrawUtils::SetConsoleTextColor(g_ColorGreen[0] * fade, g_ColorGreen[1] * fade, g_ColorGreen[2] * fade);
 						break;
 				}
 				continue;
@@ -240,7 +276,6 @@ int CHudSayText :: Draw( float flTime )
 			DrawUtils::DrawConsoleString(current_x, y, color_buffer);
 		}
 
-		y += line_height;
 	}
 	
 	return 1;
@@ -411,7 +446,7 @@ void CHudSayText :: SayTextPrint( const char *pszBuf, int iBufSize, int clientIn
 
 	g_iNameLengths[i] = 0;
 	g_pflNameColors[i] = NULL;
-	g_flLineAlpha[i] = 0.0f;
+	SayText_SetLineState( i, gHUD.m_flTime );
 
 #if 1
 	// if it's a say message, search for the players name in the string
@@ -534,6 +569,9 @@ void CHudSayText :: EnsureTextFitsInOneLineAndWrapIfHaveTo( int line )
 					strlcat( g_szLineBuffer[j], " ", sizeof( g_szLineBuffer[j] ) );
 					strlcat( g_szLineBuffer[j], last_break, sizeof( g_szLineBuffer[j] ) );
 				}
+				g_pflNameColors[j] = g_pflNameColors[line];
+				g_iNameLengths[j] = g_iNameLengths[line];
+				SayText_SetLineState( j, gHUD.m_flTime );
 
 				*last_break = 0; // cut off the last string
 
