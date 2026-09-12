@@ -730,6 +730,7 @@ void CHudScoreboard :: UserCmd_ShowScores( void )
 {
 	m_bForceDraw = false;
 	m_bShowscoresHeld = true;
+	m_iFlags |= HUD_DRAW;
 }
 
 void CHudScoreboard :: UserCmd_HideScores( void )

@@ -1122,6 +1122,7 @@ void CHudScoreboard2 :: UserCmd_ShowScores( void )
 {
 	m_bForceDraw = false;
 	m_bShowscoresHeld = true;
+	m_iFlags |= HUD_DRAW;
 }
 
 void CHudScoreboard2 :: UserCmd_HideScores( void )
