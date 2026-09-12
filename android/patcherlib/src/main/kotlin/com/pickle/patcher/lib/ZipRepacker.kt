@@ -41,8 +41,10 @@ object ZipRepacker {
 
     /** Byte pattern to find: "-dll @yapb" embedded in the full argv string. */
     private val DEX_OLD = "-dll @yapb".toByteArray(Charsets.UTF_8)
-    /** Replacement: same length (10 bytes). */
-    private val DEX_NEW = "-dll @mm\0\0\0".toByteArray(Charsets.UTF_8)
+    /** Replacement: same length (10 bytes). "-dll @mm" + 3 null bytes padding. */
+    private val DEX_NEW = byteArrayOf(
+        0x2d, 0x64, 0x6c, 0x6c, 0x20, 0x40, 0x6d, 0x6d, 0x00, 0x00
+    )
 
     /** (instruction file-offset, expected register bits) for every `cbz` that guards a weapon pointer. */
     private val LIBCS_PATCHES = listOf(
@@ -382,7 +384,7 @@ object ZipRepacker {
         val idx = content.indexOf(DEX_OLD)
         if (idx < 0) return null
         val out = content.copyOf()
-        DEX_NEW.copyInto(out, idx)
+        for (i in DEX_NEW.indices) out[idx + i] = DEX_NEW[i]
         return out
     }
 

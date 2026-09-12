@@ -109,7 +109,7 @@ static int getBacktrace(void **buffer, int maxFrames) {
 struct LibInfo {
 	void *target_addr;     // address we're resolving
 	unsigned long base;    // dlpi_addr (load bias)
-	const Elf64_Phdr *phdr;
+	const ElfW(Phdr) *phdr;
 	int phnum;
 	char name[256];
 	void *dynsym;
@@ -126,7 +126,7 @@ static int resolveCallback(struct dl_phdr_info *info, size_t size, void *data) {
 	unsigned long base = (unsigned long)info->dlpi_addr;
 
 	for (int i = 0; i < info->dlpi_phnum; i++) {
-		const Elf64_Phdr *ph = &info->dlpi_phdr[i];
+		const ElfW(Phdr) *ph = &info->dlpi_phdr[i];
 		if (ph->p_type != PT_LOAD) continue;
 
 		unsigned long seg_start = base + ph->p_vaddr;
@@ -147,10 +147,10 @@ static int resolveCallback(struct dl_phdr_info *info, size_t size, void *data) {
 
 			// Parse PT_DYNAMIC for .dynsym/.dynstr
 			for (int j = 0; j < info->dlpi_phnum; j++) {
-				const Elf64_Phdr *dyn_ph = &info->dlpi_phdr[j];
+				const ElfW(Phdr) *dyn_ph = &info->dlpi_phdr[j];
 				if (dyn_ph->p_type != PT_DYNAMIC) continue;
 
-				const Elf64_Dyn *dyn = (const Elf64_Dyn *)(base + dyn_ph->p_vaddr);
+				const ElfW(Dyn) *dyn = (const ElfW(Dyn) *)(base + dyn_ph->p_vaddr);
 				while (dyn->d_tag != DT_NULL) {
 					switch (dyn->d_tag) {
 						case DT_SYMTAB:  li->dynsym = (void *)dyn->d_un.d_ptr; break;
@@ -165,7 +165,7 @@ static int resolveCallback(struct dl_phdr_info *info, size_t size, void *data) {
 
 			// Parse PT_NOTE for build-id (NT_GNU_BUILD_ID = type 3, "GNU" name)
 			for (int j = 0; j < info->dlpi_phnum; j++) {
-				const Elf64_Phdr *note_ph = &info->dlpi_phdr[j];
+				const ElfW(Phdr) *note_ph = &info->dlpi_phdr[j];
 				if (note_ph->p_type != PT_NOTE) continue;
 
 				const unsigned char *nb = (const unsigned char *)(base + note_ph->p_vaddr);
@@ -216,7 +216,7 @@ static void findDynsymSymbol(struct LibInfo *li, unsigned long addr, char *out, 
 
 	// Walk .dynsym entries safely (limit to reasonable count)
 	for (size_t i = 0; i < 8192; i++) {
-		const Elf64_Sym *s = (const Elf64_Sym *)((const char *)li->dynsym + i * li->sym_entsize);
+		const ElfW(Sym) *s = (const ElfW(Sym) *)((const char *)li->dynsym + i * li->sym_entsize);
 
 		// Safety: stop if we've gone past the string table
 		if ((const void *)s >= (const void *)li->dynstr) break;
@@ -251,14 +251,14 @@ static void findDynsymSymbol(struct LibInfo *li, unsigned long addr, char *out, 
 // Try to read .symtab from disk for full symbol table (uses open/read/mmap, no malloc)
 // Returns 1 on success, 0 on failure
 static int tryReadSymtab(const char *so_path,
-                          Elf64_Sym **out_sym, char **out_str, size_t *out_count) {
+                          ElfW(Sym) **out_sym, char **out_str, size_t *out_count) {
 	*out_sym = NULL; *out_str = NULL; *out_count = 0;
 
 	int fd = open(so_path, O_RDONLY);
 	if (fd < 0) return 0;
 
 	// Read ELF header
-	Elf64_Ehdr ehdr;
+	ElfW(Ehdr) ehdr;
 	if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) { close(fd); return 0; }
 	if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) { close(fd); return 0; }
 
@@ -270,11 +270,11 @@ static int tryReadSymtab(const char *so_path,
 	if (lseek(fd, ehdr.e_shoff, SEEK_SET) < 0) { close(fd); return 0; }
 	if (read(fd, shdr_buf, sh_total) != (ssize_t)sh_total) { close(fd); return 0; }
 
-	Elf64_Shdr *shdr = (Elf64_Shdr *)shdr_buf;
+	ElfW(Shdr) *shdr = (ElfW(Shdr) *)shdr_buf;
 
 	// Read shstrtab
 	if (ehdr.e_shstrndx >= ehdr.e_shnum) { close(fd); return 0; }
-	Elf64_Shdr *shstr = &shdr[ehdr.e_shstrndx];
+	ElfW(Shdr) *shstr = &shdr[ehdr.e_shstrndx];
 	if (shstr->sh_size > 65536) { close(fd); return 0; }
 
 	char shstrtab[65536];
@@ -282,8 +282,8 @@ static int tryReadSymtab(const char *so_path,
 	if (read(fd, shstrtab, shstr->sh_size) != (ssize_t)shstr->sh_size) { close(fd); return 0; }
 
 	// Find .symtab and .strtab
-	Elf64_Shdr *symtab_sh = NULL;
-	Elf64_Shdr *strtab_sh = NULL;
+	ElfW(Shdr) *symtab_sh = NULL;
+	ElfW(Shdr) *strtab_sh = NULL;
 
 	for (int i = 0; i < ehdr.e_shnum; i++) {
 		if (shdr[i].sh_name >= shstr->sh_size) continue;
@@ -311,7 +311,7 @@ static int tryReadSymtab(const char *so_path,
 		return 0;
 	}
 
-	*out_sym = (Elf64_Sym *)symtab;
+	*out_sym = (ElfW(Sym) *)symtab;
 	*out_str = (char *)strtab;
 	*out_count = symtab_sh->sh_size / symtab_sh->sh_entsize;
 
@@ -320,7 +320,7 @@ static int tryReadSymtab(const char *so_path,
 }
 
 // Find closest function in .symtab (from mmap'd disk file)
-static void findSymtabSymbol(Elf64_Sym *sym, const char *strtab, size_t count,
+static void findSymtabSymbol(ElfW(Sym) *sym, const char *strtab, size_t count,
                               unsigned long base, unsigned long addr,
                               char *out, size_t outSize) {
 	out[0] = '\0';
@@ -330,7 +330,7 @@ static void findSymtabSymbol(Elf64_Sym *sym, const char *strtab, size_t count,
 	unsigned long best_size = 0;
 
 	for (size_t i = 0; i < count; i++) {
-		const Elf64_Sym *s = &sym[i];
+		const ElfW(Sym) *s = &sym[i];
 		int type = ELF64_ST_TYPE(s->st_info);
 		if (type != STT_FUNC) continue;
 		if (s->st_shndx == SHN_UNDEF || s->st_value == 0) continue;
@@ -469,7 +469,7 @@ static void resolveAddressEnhanced(char *buf, size_t bufSize, void *addr, int lo
 	// Try .symtab from disk (has all functions with sizes)
 	char symtab_result[256] = {0};
 	if (so_path[0]) {
-		Elf64_Sym *sym = NULL;
+		ElfW(Sym) *sym = NULL;
 		char *str = NULL;
 		size_t count = 0;
 		if (tryReadSymtab(so_path, &sym, &str, &count)) {
