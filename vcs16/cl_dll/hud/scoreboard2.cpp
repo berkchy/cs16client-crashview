@@ -248,8 +248,9 @@ int CHudScoreboard2 :: Init( void )
 {
 	gHUD.AddHudElem( this );
 
-	gEngfuncs.pfnAddCommand( "+showscores2", __ShowScores2 );
-	gEngfuncs.pfnAddCommand( "-showscores2", __HideScores2 );
+	int r1 = gEngfuncs.pfnAddCommand( "+showscores2", __ShowScores2 );
+	int r2 = gEngfuncs.pfnAddCommand( "-showscores2", __HideScores2 );
+	gEngfuncs.Con_Printf( "Scoreboard2: pfnAddCommand +showscores2=%d -showscores2=%d\n", r1, r2 );
 
 	HOOK_MESSAGE( gHUD.m_Scoreboard, ScoreInfo );
 	HOOK_MESSAGE( gHUD.m_Scoreboard, TeamScore );
