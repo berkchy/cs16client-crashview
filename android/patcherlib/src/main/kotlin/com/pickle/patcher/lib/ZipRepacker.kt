@@ -37,6 +37,12 @@ object ZipRepacker {
      * Single byte per site: opcode byte 0xB4 -> 0xB6.
      */
     val LIBCS_ENTRY = "lib/arm64-v8a/libcs_android_arm64.so"
+    val DEX_ENTRY = "classes.dex"
+
+    /** Byte pattern to find: "-dll @yapb" embedded in the full argv string. */
+    private val DEX_OLD = "-dll @yapb".toByteArray(Charsets.UTF_8)
+    /** Replacement: same length (10 bytes). */
+    private val DEX_NEW = "-dll @mm\0\0\0".toByteArray(Charsets.UTF_8)
 
     /** (instruction file-offset, expected register bits) for every `cbz` that guards a weapon pointer. */
     private val LIBCS_PATCHES = listOf(
@@ -206,6 +212,37 @@ object ZipRepacker {
                         }
                     }
 
+                    // Patch classes.dex: -dll @yapb -> -dll @mm
+                    if (entry.name == DEX_ENTRY) {
+                        val content = src.readContent(entry)
+                        val patched = patchDex(content)
+                        if (patched != null) {
+                            val out = java.io.ByteArrayOutputStream()
+                            val def = Deflater(9, true)
+                            def.setInput(patched)
+                            def.finish()
+                            val chunk = ByteArray(8192)
+                            while (!def.finished()) {
+                                val n = def.deflate(chunk)
+                                out.write(chunk, 0, n)
+                            }
+                            def.end()
+                            val compressed = out.toByteArray()
+                            writeLocalHeader(
+                                name = entry.name,
+                                method = 8,
+                                compressedSize = compressed.size.toLong(),
+                                uncompressedSize = patched.size.toLong(),
+                                crc = crc32(patched),
+                                data = compressed,
+                            )
+                            patchedLibs.add(entry.name)
+                            done++
+                            progress?.invoke(bytesWritten, srcLen)
+                            continue
+                        }
+                    }
+
                     val raw = ByteArray(entry.compressedSize.toInt())
                     src.file.seek(entry.dataOffset)
                     src.file.readFully(raw)
@@ -332,6 +369,20 @@ object ZipRepacker {
             if (high != 0xB4 || reg != rt) return null
             out[off + 3] = 0xB6.toByte()   // cbz -> tbz #32
         }
+        return out
+    }
+
+    /**
+     * Patch classes.dex: replace "-dll @yapb" with "-dll @mm" (same byte length).
+     * The Xash3D engine resolves @mm to lib/<abi>/libmm_android_<arch>.so, so the
+     * bundle ships metamod under that name instead of the old libyapb_android_*.so alias.
+     * Returns patched bytes or null if pattern not found (already patched / different build).
+     */
+    private fun patchDex(content: ByteArray): ByteArray? {
+        val idx = content.indexOf(DEX_OLD)
+        if (idx < 0) return null
+        val out = content.copyOf()
+        DEX_NEW.copyInto(out, idx)
         return out
     }
 

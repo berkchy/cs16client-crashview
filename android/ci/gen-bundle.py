@@ -61,18 +61,15 @@ def main():
             "required": True,
             "description": "Metamod HL1",
         })
-        # Xash3D Android resolves `-dll @yapb` (hardcoded in classes.dex /
-        # MainActivity argv) to lib/<abi>/libyapb_android_<arch>.so and loads
-        # it as the game DLL. Shipping metamod under that same name makes the
-        # patched APK run metamod (and therefore amxmodx) as the gamedll
-        # instead of YaPB, without having to rewrite the dex.
-        # Content equals libmetamod.so.
+        # Xash3D Android resolves `-dll @mm` (patched into classes.dex by
+        # ZipRepacker.patchDex) to lib/<abi>/libmm_android_<arch>.so and loads
+        # it as the game DLL.  Content equals libmetamod.so.
         entries.append({
             "source": f"{abidir}/libmetamod.so",
-            "target": f"{abidir}/libyapb_android_{suffix}.so",
+            "target": f"{abidir}/libmm_android_{suffix}.so",
             "method": "STORED",
             "required": True,
-            "description": f"Metamod as gamedll (masks libyapb_android_{suffix}.so)",
+            "description": f"Metamod as gamedll (libmm_android_{suffix}.so)",
         })
     # Actual YaPB bot .so — loaded by metamod via plugins.ini
     yapb_so = os.path.join(libdir, "libyapb.so")
