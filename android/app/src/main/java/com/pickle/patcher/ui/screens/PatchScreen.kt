@@ -240,7 +240,15 @@ private fun BundleCard(vm: PatcherViewModel) {
                 }
             }
             is BundleState.Downloading -> {
-                Text("Downloading…", style = MaterialTheme.typography.titleSmall)
+                if (bs.tagName.isNotBlank()) {
+                    Text(
+                        bs.tagName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Accent,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                Text("Downloading…", style = MaterialTheme.typography.bodySmall, color = Gray40)
                 Spacer(Modifier.height(8.dp))
                 AppProgressBar(bs.percent)
             }

@@ -38,7 +38,7 @@ data class SourceInfo(
 sealed interface BundleState {
     data object None : BundleState
     data class Ready(val bundleName: String, val entries: Int, val version: String) : BundleState
-    data class Downloading(val percent: Float) : BundleState
+    data class Downloading(val percent: Float, val tagName: String = "") : BundleState
     data class DownloadError(val message: String) : BundleState
 }
 
@@ -261,15 +261,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             _bundle.value = BundleState.Downloading(0.04f)
             try {
                 val rel = ReleaseRepository.latest(repo)
+                val tagName = rel.name.ifBlank { rel.tag_name }
+                _releaseNote.value = tagName
                 val asset = rel.bundleAsset(_abi.value)
                     ?: throw IOException("No bundle found for ABI ${_abi.value} in the latest release")
                 _bundle.update {
-                    BundleState.Downloading(0.1f)
+                    BundleState.Downloading(0.1f, tagName)
                 }
                 val dest = bundleProvider.cachedBundleFile()
                 ReleaseRepository.download(asset, dest) { p ->
-                    // thread-safe; MutableStateFlow.value is atomic
-                    _bundle.value = BundleState.Downloading(p)
+                    _bundle.value = BundleState.Downloading(p, tagName)
                 }
                 val b = Bundle.fromZip(dest.readBytes())
                     ?: throw IOException("Bundle file is corrupted")
