@@ -27,6 +27,23 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Detect build type
+        id: build_type
+        shell: bash
+        run: |
+          MSG=$(git log -1 --pretty=%s)
+          echo "Commit message: $MSG"
+          LOWER=$(echo "$MSG" | tr '[:upper:]' '[:lower:]')
+          NEEDS_APK=false
+          NEEDS_BUNDLE=false
+          if echo "$LOWER" | grep -q '\[android build\]' || echo "$LOWER" | grep -q '\[version build\]'; then
+            NEEDS_APK=true
+          fi
+          NEEDS_BUNDLE=true
+          echo "needs_apk=$NEEDS_APK" >> "$GITHUB_OUTPUT"
+          echo "needs_bundle=$NEEDS_BUNDLE" >> "$GITHUB_OUTPUT"
+          echo "APK build: $NEEDS_APK | Bundle build: $NEEDS_BUNDLE"
+
       - name: Checkout addons from amxx-addons branch
         shell: bash
         run: |
@@ -34,6 +51,7 @@ jobs:
           git checkout origin/amxx-addons -- addons/
 
       - name: Set up JDK
+        if: steps.build_type.outputs.needs_apk == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -100,6 +118,7 @@ jobs:
           zip -r amxx-addons.zip addons/ -x '*.git*'
 
       - name: Install Android SDK platform & build tools
+        if: steps.build_type.outputs.needs_apk == 'true'
         shell: bash
         run: |
           # The runner's preinstalled sdkmanager is too old for current SDK XML
@@ -116,11 +135,13 @@ jobs:
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Set up Gradle
+        if: steps.build_type.outputs.needs_apk == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: false
 
       - name: Bundle debug signing keystore into app assets
+        if: steps.build_type.outputs.needs_apk == 'true'
         shell: bash
         run: |
           mkdir -p android/app/src/main/assets/keystore
@@ -129,12 +150,14 @@ jobs:
           cp android/debug/debug_cert.pem android/app/src/main/assets/keystore/debug_cert.pem
 
       - name: Embed bundle into app assets (offline fallback)
+        if: steps.build_type.outputs.needs_apk == 'true'
         shell: bash
         run: |
           mkdir -p android/app/src/main/assets/bundle
           cp "$GITHUB_WORKSPACE/amxx-bundle.zip" android/app/src/main/assets/bundle/bundle.zip
 
       - name: Embed amxxpc + modules as native libs (nativeLibraryDir)
+        if: steps.build_type.outputs.needs_apk == 'true'
         shell: bash
         run: |
           # amxxpc compiler (produced by build-amxx.sh; no longer inside the bundle)
@@ -171,6 +194,7 @@ jobs:
           ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Build the patcher APK
+        if: steps.build_type.outputs.needs_apk == 'true'
         working-directory: android
         env:
           APP_VERSION_NAME: ${{ github.ref_name }}
@@ -185,6 +209,6 @@ jobs:
             amxx-bundle-armeabi-v7a.zip
             amxx-plugins.zip
             amxx-addons.zip
-            android/app/build/outputs/apk/release/*.apk
+            ${{ steps.build_type.outputs.needs_apk == 'true' && 'android/app/build/outputs/apk/release/*.apk' || '' }}
           generate_release_notes: true
           fail_on_unmatched_files: false
