@@ -351,13 +351,8 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 	write(fd, footer, sizeof(footer) - 1);
 	close(fd);
 
-	// Re-raise with default handler to generate tombstone
-	struct sigaction sa;
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = SIG_DFL;
-	sigemptyset(&sa.sa_mask);
-	sigaction(sig, &sa, NULL);
-	kill(getpid(), sig);
+	// Exit process cleanly; MainActivity detects crash.log on next launch and shows crash screen
+	_exit(1);
 }
 
 static struct sigaction s_oldHandlers[32];
