@@ -40,6 +40,9 @@ jobs:
             NEEDS_APK=true
           fi
           NEEDS_BUNDLE=true
+          # Escape multiline for GitHub Actions output
+          ESCAPED=$(echo "$MSG" | head -1 | sed 's/"/\\"/g')
+          echo "commit_msg=$ESCAPED" >> "$GITHUB_OUTPUT"
           echo "needs_apk=$NEEDS_APK" >> "$GITHUB_OUTPUT"
           echo "needs_bundle=$NEEDS_BUNDLE" >> "$GITHUB_OUTPUT"
           echo "APK build: $NEEDS_APK | Bundle build: $NEEDS_BUNDLE"
@@ -204,6 +207,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ steps.build_type.outputs.commit_msg }}
           files: |
             amxx-bundle.zip
             amxx-bundle-armeabi-v7a.zip
