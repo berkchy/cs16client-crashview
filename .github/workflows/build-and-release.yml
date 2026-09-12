@@ -118,6 +118,12 @@ jobs:
             echo "::warning::No amxmodx core for armeabi-v7a — v7a bundle skipped"
           fi
           cd "$GITHUB_WORKSPACE"
+          # Remove hardcoded gamedll from metamod config — let metamod-fwgs
+          # auto-detect the correct game DLL name per architecture via
+          # COM_GenerateCommonLibraryName (library-suffix submodule).
+          if [ -f addons/metamod/config.ini ]; then
+            sed -i '/^gamedll /d' addons/metamod/config.ini
+          fi
           zip -r amxx-addons.zip addons/ -x '*.git*'
 
       - name: Install Android SDK platform & build tools
