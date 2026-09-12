@@ -1,16 +1,20 @@
 package com.pickle.patcher.patcher
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
+import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pickle.patcher.CrashLog
+import com.pickle.patcher.R
 import com.pickle.patcher.data.BundleProvider
 import com.pickle.patcher.data.ReleaseRepository
 import com.pickle.patcher.lib.ApkPatcher
@@ -275,6 +279,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val b = Bundle.fromZip(dest.readBytes())
                     ?: throw IOException("Bundle file is corrupted")
                 _releaseNote.value = rel.name.ifBlank { rel.tag_name }
+                markBundleTagKnown(rel.tag_name)
                 applyBundle(asset.name, b)
             } catch (t: Throwable) {
                 _bundle.value = BundleState.DownloadError(t.message ?: "Unknown error")
@@ -463,7 +468,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             if (!silent) _appUpdate.value = AppUpdate.Checking
             try {
-                // Quota-free tag resolve (api.github.com is 60 req/hour shared).
                 val tag = ReleaseRepository.latestTagRedirect(APP_RELEASE_REPO)
                 if (tag.isNullOrEmpty()) {
                     nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
@@ -477,17 +481,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (_: Throwable) {
                     null
                 }
+
                 val known = updatePrefs.getString("known_tag", null)
-                // Manual checks bypass the dismissed-tag memory so the popup
-                // can be brought back from the menu any time.
                 val isNew = (tag != known || !silent) &&
                     (ours == null || !ours.startsWith("v") || tag != ours)
                 if (!isNew) {
                     _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.UpToDate(tag)
                     return@launch
                 }
-                // Tag is new: one API call for notes + exact asset (rare).
-                // If the API is rate-limited, fall back to the deterministic URL.
+
                 var notes = ""
                 var url = "https://github.com/$APP_RELEASE_REPO/releases/download/$tag/CS16-Meta-Patcher-release.apk"
                 var size = 0L
@@ -500,7 +502,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                             url = it.browser_download_url
                             size = it.size
                         }
-                        // Fetch commit messages between installed version and this tag
                         if (ours != null && ours.startsWith("v") && ours != tag) {
                             commits = ReleaseRepository.compareCommits(APP_RELEASE_REPO, ours, tag)
                         }
@@ -508,7 +509,22 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (_: Throwable) {
                     nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 }
-                _appUpdate.value = AppUpdate.Available(tag, notes, commits, size, url)
+
+                val buildType = parseBuildType(notes)
+
+                when (buildType) {
+                    BuildType.BUNDLE -> {
+                        updatePrefs.edit().putString("known_tag", tag).apply()
+                        checkBundleUpdate(tag)
+                        _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.UpToDate(tag)
+                    }
+                    BuildType.ANDROID, BuildType.VERSION -> {
+                        _appUpdate.value = AppUpdate.Available(tag, notes, commits, size, url)
+                        if (buildType == BuildType.VERSION) {
+                            checkBundleUpdate(tag)
+                        }
+                    }
+                }
             } catch (t: Throwable) {
                 nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.Failed(t.message ?: "Update check failed")
@@ -546,6 +562,44 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun consumeDownloaded() {
         _appUpdate.value = AppUpdate.Idle
+    }
+
+    // ------------------------------------------------- bundle update notification
+
+    private fun checkBundleUpdate(latestTag: String) {
+        val knownBundleTag = updatePrefs.getString("known_bundle_tag", null)
+        if (latestTag == knownBundleTag) return
+
+        val app = getApplication<Application>()
+        val nm = app.getSystemService(NotificationManager::class.java)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Bundle Updates",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Notifies when a new mod bundle is available"
+            }
+            nm.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(app, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("New bundle available")
+            .setContentText("Version $latestTag has been published. Open Patcher to download.")
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            nm.notify(NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS not granted on Android 13+
+        }
+    }
+
+    fun markBundleTagKnown(tag: String) {
+        updatePrefs.edit().putString("known_bundle_tag", tag).apply()
     }
 
     // ------------------------------------------------------- plugins editor
@@ -939,6 +993,31 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/cs16-meta-patcher"
+        const val NOTIFICATION_CHANNEL_ID = "bundle_updates"
+        const val NOTIFICATION_ID = 1001
+
+        /**
+         * Detect build type from release body (auto-generated release notes).
+         * Commit message tags placed by the developer:
+         *   [android build]  → APK-only update (skip bundle notification)
+         *   [bundle build]   → Bundle-only update (skip APK dialog, show notification)
+         *   [version build]  → Both APK + bundle (show APK dialog AND bundle notification)
+         */
+        fun parseBuildType(body: String): BuildType {
+            val lower = body.lowercase()
+            val hasAndroid = "[android build]" in lower
+            val hasBundle = "[bundle build]" in lower
+            val hasVersion = "[version build]" in lower
+            return when {
+                hasVersion -> BuildType.VERSION
+                hasAndroid && !hasBundle -> BuildType.ANDROID
+                hasBundle && !hasAndroid -> BuildType.BUNDLE
+                hasAndroid && hasBundle -> BuildType.VERSION
+                else -> BuildType.ANDROID
+            }
+        }
+
+        enum class BuildType { ANDROID, BUNDLE, VERSION }
     }
 
     /**
