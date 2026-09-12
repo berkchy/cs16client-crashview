@@ -79,15 +79,17 @@ static int writeStr(int fd, const char *s) {
 }
 
 // ─── unwind backtrace ───────────────────────────────────────────────────────
-// _Unwind_Backtrace is unreliable inside signal handlers on ARM/ARM64.
-// Use frame-pointer walking instead — works when compiled with -fno-omit-frame-pointer.
+// Read the crashed thread's frame pointer from ucontext registers, then walk
+// the frame chain. This works even inside signal handlers where inline asm
+// would only see the handler's own stack frames.
 
-static int getBacktrace(void **buffer, int maxFrames) {
+static int getBacktrace(void **buffer, int maxFrames, void *ucontext) {
 	int count = 0;
+	if (!ucontext) return 0;
+	mcontext_t *mctx = &((ucontext_t *)ucontext)->uc_mcontext;
+
 #if defined(__aarch64__)
-	// ARM64: fp=x29. Stack layout: [fp] -> prev_fp, [fp+8] -> return_addr
-	void **fp;
-	__asm__ volatile("mov %0, fp" : "=r"(fp));
+	void **fp = (void **)mctx->regs[29];
 	while (count < maxFrames && fp && !((unsigned long)fp & 0xf)) {
 		void *ra = (void *)fp[1];
 		if (!ra) break;
@@ -97,9 +99,7 @@ static int getBacktrace(void **buffer, int maxFrames) {
 		fp = prev;
 	}
 #elif defined(__arm__)
-	// ARM32: fp=r11. Same layout: [fp] -> prev_fp, [fp+4] -> return_addr
-	void **fp;
-	__asm__ volatile("mov %0, fp" : "=r"(fp));
+	void **fp = (void **)mctx->arm_fp;
 	while (count < maxFrames && fp && !((unsigned long)fp & 0x3)) {
 		void *ra = (void *)fp[1];
 		if (!ra) break;
@@ -109,7 +109,7 @@ static int getBacktrace(void **buffer, int maxFrames) {
 		fp = prev;
 	}
 #else
-	// x86_64 fallback
+	(void)mctx;
 	struct BacktraceState { void **cur; void **end; int depth; };
 	auto cb = [](_Unwind_Context *ctx, void *arg) -> _Unwind_Reason_Code {
 		auto *s = (BacktraceState *)arg;
@@ -648,7 +648,7 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 
 	// Unwind backtrace
 	void *frames[64];
-	int frameCount = getBacktrace(frames, 64);
+	int frameCount = getBacktrace(frames, 64, ucontext);
 
 	writeStr(fd, "\n--- Backtrace ---\n");
 
