@@ -32,42 +32,44 @@ You have to own the [game on Steam](https://store.steampowered.com/app/10/Counte
 After that, just install the APK and run.
 
 ## Configuration (CVars)
-| CVar                     | Default       | Min | Max | Description                                                                                 |
-|--------------------------|---------------|-----|-----|---------------------------------------------------------------------------------------------|
-| hud_color                | "255 160 0"   | -   | -   | HUD color in RGB.                                                                           |
-| cl_quakeguns             | 0             | 0   | 1   | Draw centered weapons.                                                                      |
-| cl_weaponlag             | 0             | 0.0 | -   | Enable weapon lag/sway.                                                                     |
-| xhair_additive           | 0             | 0   | 1   | Makes the crosshair additive.                                                               |
-| xhair_color              | "0 255 0 255" | -   | -   | Crosshair's color (RGBA).                                                                   |
-| xhair_dot                | 0             | 0   | 1   | Enables crosshair dot.                                                                      |
-| xhair_dynamic_move       | 1             | 0   | 1   | Jumping, crouching and moving will affect the dynamic crosshair (like cl_dynamiccrosshair). |
-| xhair_dynamic_scale      | 0             | 0   | -   | Scale of the dynamic crosshair movement.                                                    |
-| xhair_gap_useweaponvalue | 0             | 0   | 1   | Makes the crosshair gap scale depend on the active weapon.                                  |
-| xhair_enable             | 0             | 0   | 1   | Enables enhanced crosshair.                                                                 |
-| xhair_gap                | 0             | 0   | 15  | Space between crosshair's lines.                                                            |
-| xhair_pad                | 0             | 0   | -   | Border around crosshair.                                                                    |
-| xhair_size               | 4             | 0   | -   | Crosshair size.                                                                             |
-| xhair_t                  | 0             | 0   | 1   | Enables T-shaped crosshair.                                                                 |
-| xhair_thick              | 0             | 0   | -   | Crosshair thickness.                                                                        |
-| cl_smoothfov             | 0.25          | 0   | -   | Zoom transition time in seconds (smoothstep easing, 0 = disabled).                          |
-| cl_scoreboard_anim       | 1             | 0   | 1   | Smoothly animates the scoreboard slide-in.                                                  |
-| cl_chat_smooth           | 1             | 0   | 1   | Smoothly animates chat message appearance/scrolling.                                        |
-| hud_saytext_anim_time    | 0.20          | 0.01| 1.0 | Chat line fade/slide duration (seconds, requires cl_chat_smooth 1).                         |
-| hud_saytext_x_offset     | 12            | -   | -   | Horizontal offset of chat lines in pixels.                                                  |
-| hud_saytext_y_offset     | -15           | -   | -   | Vertical offset of chat lines in pixels.                                                    |
-| cl_killfeed_smooth       | 1             | 0   | 1   | Smoothly animates killfeed entries (fade + slide).                                          |
-| hud_deathnotice_x        | 4             | 0   | -   | Right padding of killfeed rows in pixels.                                                   |
-| hud_deathnotice_y        | 0             | -   | -   | Vertical offset of the killfeed stack.                                                      |
-| hud_deathnotice_row_gap  | 24            | 12  | 48  | Vertical spacing between killfeed rows.                                                     |
-| hud_deathnotice_bg_alpha | 96            | 0   | 255 | Killfeed background panel alpha.                                                            |
-| hud_deathnotice_bg_softness | 100         | 0   | 100 | Killfeed background corner radius / softness (scoreboard-style rounded corners).           |
-| hud_deathnotice_anim_time | 0.18         | 0.01| 1.0 | Killfeed fade/slide duration (seconds, requires cl_killfeed_smooth 1).                      |
-| hud_deathnotice_time     | 6             | -   | -   | How long a killfeed entry is shown (seconds).                                               |
-| cl_viewmodel_sway        | 0.5           | 0   | -   | Viewmodel sway amount (recoil/aim drift).                                                   |
-| cl_viewmodel_movebob     | 0.3           | 0   | -   | Viewmodel movement bob amount (weapon wag while moving).                                    |
-| cl_spec_ui_color       | "255 140 0"   | -   | -   | Spectator HUD UI color (RGB).                                                             |
-| cl_spec_bar_alpha      | 153           | 0   | 255 | Spectator HUD bar alpha (0-255).                                                          |
-| cl_scrollview_glide    | 1             | 0   | 1   | Smooth eased glide of scroll views (0 to disable, 1 to enable).                           |
+| CVar                       | Default            | Min  | Max  | Description                                                                                 |
+|----------------------------|--------------------|------|------|---------------------------------------------------------------------------------------------|
+| hud_color                  | "255 160 0"        | -    | -    | HUD color in RGB.                                                                           |
+| cl_quakeguns               | 0                  | 0    | 1    | Draw centered weapons.                                                                      |
+| cl_weaponlag               | 0                  | 0.0  | -    | Enable weapon lag/sway.                                                                     |
+| xhair_additive             | 0                  | 0    | 1    | Makes the crosshair additive.                                                               |
+| xhair_color                | "0 255 0 255"      | -    | -    | Crosshair's color (RGBA).                                                                   |
+| xhair_dot                  | 0                  | 0    | 1    | Enables crosshair dot.                                                                      |
+| xhair_dynamic_move         | 1                  | 0    | 1    | Jumping, crouching and moving will affect the dynamic crosshair (like cl_dynamiccrosshair). |
+| xhair_dynamic_scale        | 0                  | 0    | -    | Scale of the dynamic crosshair movement.                                                    |
+| xhair_gap_useweaponvalue   | 0                  | 0    | 1    | Makes the crosshair gap scale depend on the active weapon.                                  |
+| xhair_enable               | 0                  | 0    | 1    | Enables enhanced crosshair.                                                                 |
+| xhair_gap                  | 0                  | 0    | 15   | Space between crosshair's lines.                                                            |
+| xhair_pad                  | 0                  | 0    | -    | Border around crosshair.                                                                    |
+| xhair_size                 | 4                  | 0    | -    | Crosshair size.                                                                             |
+| xhair_t                    | 0                  | 0    | 1    | Enables T-shaped crosshair.                                                                 |
+| xhair_thick                | 0                  | 0    | -    | Crosshair thickness.                                                                        |
+| cl_smoothfov               | 0.25               | 0    | -    | Zoom transition time in seconds (smoothstep easing, 0 = disabled).                          |
+| cl_scoreboard_anim         | 1                  | 0    | 1    | Smoothly animates the scoreboard slide-in.                                                  |
+| cl_chat_smooth             | 1                  | 0    | 1    | Smoothly animates chat message appearance/scrolling.                                        |
+| hud_saytext_anim_time      | 0.20               | 0.01 | 1.0  | Chat line fade/slide duration (seconds, requires cl_chat_smooth 1).                         |
+| hud_saytext_x_offset       | 12                 | -    | -    | Horizontal offset of chat lines in pixels.                                                  |
+| hud_saytext_y_offset       | -15                | -    | -    | Vertical offset of chat lines in pixels.                                                    |
+| cl_killfeed_smooth         | 1                  | 0    | 1    | Smoothly animates killfeed entries (fade + slide).                                          |
+| hud_deathnotice_time       | 6                  | -    | -    | How long a killfeed entry is shown (seconds).                                               |
+| hud_deathnotice_x          | 4                  | 0    | -    | Right padding of killfeed rows in pixels.                                                   |
+| hud_deathnotice_y          | 0                  | -    | -    | Vertical offset of the killfeed stack.                                                      |
+| hud_deathnotice_row_gap    | 24                 | 12   | 48   | Vertical spacing between killfeed rows.                                                     |
+| hud_deathnotice_bg_alpha   | 96                 | 0    | 255  | Killfeed background panel alpha.                                                            |
+| hud_deathnotice_bg_softness| 100                | 0    | 100  | Killfeed background corner radius / softness (scoreboard-style rounded corners).           |
+| hud_deathnotice_anim_time  | 0.18               | 0.01 | 1.0  | Killfeed fade/slide duration (seconds, requires cl_killfeed_smooth 1).                      |
+| cl_killsound               | 0                  | 0    | -    | Play a sound when the local player gets a kill.                                             |
+| cl_killsound_path          | "buttons/bell1.wav" | -    | -    | Sound to play on kill (cl_killsound 1).                                                     |
+| cl_viewmodel_sway          | 0.5                | 0    | -    | Viewmodel sway amount (recoil/aim drift).                                                   |
+| cl_viewmodel_movebob       | 0.3                | 0    | -    | Viewmodel movement bob amount (weapon wag while moving).                                    |
+| cl_spec_ui_color           | "255 140 0"        | -    | -    | Spectator HUD UI color (RGB).                                                               |
+| cl_spec_bar_alpha          | 153                | 0    | 255  | Spectator HUD bar alpha (0-255).                                                            |
+| cl_scrollview_glide        | 1                  | 0    | 1    | Smooth eased glide of scroll views (0 to disable, 1 to enable).                             |
 
 ## Building
 Clone the source code:
