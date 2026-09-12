@@ -427,6 +427,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         data class Available(
             val tag: String,
             val notes: String,
+            val commits: List<String>,
             val size: Long,
             val url: String,
         ) : AppUpdate
@@ -489,6 +490,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 var notes = ""
                 var url = "https://github.com/$APP_RELEASE_REPO/releases/download/$tag/CS16-Meta-Patcher-release.apk"
                 var size = 0L
+                var commits = emptyList<String>()
                 try {
                     val rel = ReleaseRepository.latest(APP_RELEASE_REPO)
                     if (rel.tag_name == tag) {
@@ -497,11 +499,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                             url = it.browser_download_url
                             size = it.size
                         }
+                        // Fetch commit messages between installed version and this tag
+                        if (ours != null && ours.startsWith("v") && ours != tag) {
+                            commits = ReleaseRepository.compareCommits(APP_RELEASE_REPO, ours, tag)
+                        }
                     }
                 } catch (_: Throwable) {
                     nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 }
-                _appUpdate.value = AppUpdate.Available(tag, notes, size, url)
+                _appUpdate.value = AppUpdate.Available(tag, notes, commits, size, url)
             } catch (t: Throwable) {
                 nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
                 _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.Failed(t.message ?: "Update check failed")

@@ -40,6 +40,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +67,7 @@ import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.theme.AmxxPatcherTheme
 import com.pickle.patcher.ui.theme.Black
 import com.pickle.patcher.ui.theme.Gray40
+import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.White
@@ -367,16 +369,47 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (state is PatcherViewModel.AppUpdate.Available) {
-                    if (state.notes.isNotBlank()) {
-                        Text(
-                            state.notes.trim().take(1200),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Gray40,
+                    if (state.commits.isNotEmpty() || state.notes.isNotBlank()) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 220.dp)
+                                .heightIn(max = 260.dp)
                                 .verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                        )
+                        ) {
+                            if (state.commits.isNotEmpty()) {
+                                Text(
+                                    "Changes:",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = White,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                state.commits.forEach { msg ->
+                                    Text(
+                                        "• $msg",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Gray40,
+                                    )
+                                }
+                            }
+                            if (state.notes.isNotBlank()) {
+                                if (state.commits.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(color = Gray60)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "Release Notes:",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = White,
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                Text(
+                                    state.notes.trim().take(1200),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray40,
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     Text(

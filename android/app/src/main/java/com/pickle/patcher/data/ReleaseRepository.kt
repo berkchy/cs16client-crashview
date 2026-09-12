@@ -29,6 +29,7 @@ object ReleaseRepository {
         val name: String = "",
         val body: String = "",
         val published_at: String = "",
+        val target_commitish: String = "",
         val assets: List<Asset> = emptyList(),
     ) {
         @Serializable
@@ -87,6 +88,22 @@ object ReleaseRepository {
         }
     }
 
+    @Serializable
+    data class CompareResult(
+        val commits: List<Commit> = emptyList(),
+    ) {
+        @Serializable
+        data class Commit(
+            val sha: String = "",
+            val commit: CommitData = CommitData(),
+        ) {
+            @Serializable
+            data class CommitData(
+                val message: String = "",
+            )
+        }
+    }
+
     suspend fun latest(repo: String): Release {
         val req = Request.Builder()
             .url("https://api.github.com/repos/$repo/releases/latest")
@@ -96,6 +113,27 @@ object ReleaseRepository {
         return client.newCall(req).execute().use { resp ->
             if (resp.code != 200) throw IOException("GitHub ${resp.code}: ${resp.message}")
             json.decodeFromString<Release>(resp.body?.string().orEmpty())
+        }
+    }
+
+    /**
+     * Fetches commits between two tags using the GitHub compare API.
+     * Returns commit messages (first line of each) in reverse chronological order.
+     */
+    suspend fun compareCommits(repo: String, base: String, head: String): List<String> {
+        return try {
+            val req = Request.Builder()
+                .url("https://api.github.com/repos/$repo/compare/$base...$head")
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "cs16-amxx-patcher")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code != 200) return emptyList()
+                val result = json.decodeFromString<CompareResult>(resp.body?.string().orEmpty())
+                result.commits.map { it.commit.message.lineSequence().first().trim() }
+            }
+        } catch (_: Throwable) {
+            emptyList()
         }
     }
 
