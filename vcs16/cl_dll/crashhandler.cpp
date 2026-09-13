@@ -98,6 +98,9 @@ static int getBacktrace(void **buffer, int maxFrames, void *ucontext) {
 		if (prev <= fp) break;
 		fp = prev;
 	}
+	// Fallback: if FP walking failed, use LR as first frame
+	if (count == 0 && mctx->regs[30])
+		buffer[count++] = (void *)mctx->regs[30];
 #elif defined(__arm__)
 	void **fp = (void **)mctx->arm_fp;
 	while (count < maxFrames && fp && !((unsigned long)fp & 0x3)) {
@@ -108,8 +111,10 @@ static int getBacktrace(void **buffer, int maxFrames, void *ucontext) {
 		if (prev <= fp) break;
 		fp = prev;
 	}
+	// Fallback: if FP walking failed, use LR as first frame
+	if (count == 0 && mctx->arm_lr)
+		buffer[count++] = (void *)mctx->arm_lr;
 #else
-	(void)mctx;
 	struct BacktraceState { void **cur; void **end; int depth; };
 	auto cb = [](_Unwind_Context *ctx, void *arg) -> _Unwind_Reason_Code {
 		auto *s = (BacktraceState *)arg;
