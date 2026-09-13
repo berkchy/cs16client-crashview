@@ -541,7 +541,15 @@ static void crashHandler(int sig, siginfo_t *info, void *ucontext) {
 	if (s_inCrash) _exit(1);
 	s_inCrash = 1;
 
-	int fd = open(s_crashLogPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	// Use fallback path if SetGameDir was never called
+	char logPath[256];
+	if (s_crashLogPath[0]) {
+		safeStrcat(logPath, s_crashLogPath, sizeof(logPath));
+	} else {
+		safeStrcat(logPath, "/sdcard/cs16client/crash.log", sizeof(logPath));
+	}
+
+	int fd = open(logPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) _exit(1);
 
 	// Header
